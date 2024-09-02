@@ -10,6 +10,8 @@ using namespace std;
 #define TRUE 1
 #define FALSE 0
 
+bool DEBUG=false;
+
 #define DEF_auid 13613018040941040726
 #define DEF_auid_user 13656647726036782632
 #define DEF_uid 10955702004391339725
@@ -57,7 +59,7 @@ using namespace std;
 #define DEF_names 13727201964245479823
 #define DEF_acct 10176688188897101994
 
-bool DEBUG=true;
+
 
 //from socket.h
 /* Supported address families. */
@@ -267,7 +269,7 @@ size_t *array_hash_uniq_ignore_key;
 
 
 char name_ai[10];
-char str_auditid[6];
+char str_auditid[33];
 char str_mls[4];
 char msg[4096];
 
@@ -683,8 +685,8 @@ int add_auditid(int test_auditid)
     if (uniq_auditid[i] == 0)
     {
       uniq_auditid[i]=test_auditid;
-      //sprintf(msg,"[str:404]uniq_auditid[%d]=%d\n",i,test_auditid);
-      //deblog(msg);
+      snprintf(msg,1024,"[str:686]uniq_auditid[%d]=%d\n",i,test_auditid);
+      deblog(msg);
       return i+1;
     }
     else
@@ -922,180 +924,183 @@ int save_to_file(s_audit *f_array,int array_count)
   int i;
   for (i = 0; i < array_count; i++)
   {
-    //sprintf(msg,"[str:508(save_to_file)]f_array[%d]=\"%d\"\n",i,f_array[i].auditid);
-    //deblog(msg);
-    // === date time ====
+		if (f_array[i].auditid>0)
+		{
+	    //sprintf(msg,"[str:508(save_to_file)]f_array[%d]=\"%d\"\n",i,f_array[i].auditid);
+	    //deblog(msg);
+	    // === date time ====
 
-    local_tm=localtime(&f_array[i].t_shtamp);
-    l_tm=*local_tm;
-    fprintf(f_logfile,"%04d-%02d-%02d %02d:%02d:%02d.%i ",l_tm.tm_year+1900,l_tm.tm_mon+1,l_tm.tm_mday,l_tm.tm_hour,l_tm.tm_min,l_tm.tm_sec,f_array[i].t_mls);
-    fprintf(f_logfile,"auditid=\"%d\" ",f_array[i].auditid);
-    fprintf(f_logfile,"date=\"%04d-%02d-%02d\" ",l_tm.tm_year+1900,l_tm.tm_mon+1,l_tm.tm_mday);
-    fprintf(f_logfile,"time=\"%02d:%02d:%02d.%i\" ",l_tm.tm_hour,l_tm.tm_min,l_tm.tm_sec,f_array[i].t_mls);
+	    local_tm=localtime(&f_array[i].t_shtamp);
+	    l_tm=*local_tm;
+	    fprintf(f_logfile,"%04d-%02d-%02d %02d:%02d:%02d.%i ",l_tm.tm_year+1900,l_tm.tm_mon+1,l_tm.tm_mday,l_tm.tm_hour,l_tm.tm_min,l_tm.tm_sec,f_array[i].t_mls);
+	    fprintf(f_logfile,"auditid=\"%d\" ",f_array[i].auditid);
+	    fprintf(f_logfile,"date=\"%04d-%02d-%02d\" ",l_tm.tm_year+1900,l_tm.tm_mon+1,l_tm.tm_mday);
+	    fprintf(f_logfile,"time=\"%02d:%02d:%02d.%i\" ",l_tm.tm_hour,l_tm.tm_min,l_tm.tm_sec,f_array[i].t_mls);
 
-    if (f_array[i].auid>=0)
-    {
-      fprintf(f_logfile,"auid=\"%d\" ",f_array[i].auid);
-      fprintf(f_logfile,"auid_user=\"%s\" ",f_array[i].auid_user);
-    }
-    if (f_array[i].uid>=0)
-    {
-      fprintf(f_logfile,"uid=\"%d\" ",f_array[i].uid);
-      fprintf(f_logfile,"uid_user=\"%s\" ",f_array[i].uid_user);
-    }
-    if (f_array[i].euid>=0)
-    {
-      fprintf(f_logfile,"euid=\"%d\" ",f_array[i].euid);
-      if (strlen(f_array[i].euid_user)==0)
-        uidtouser(f_array[i].euid_user,f_array[i].euid);
-      fprintf(f_logfile,"euid_user=\"%s\" ",f_array[i].euid_user);
-    }
-    if (f_array[i].suid>=0)
-    {
-      fprintf(f_logfile,"suid=\"%d\" ",f_array[i].suid);
-      if (strlen(f_array[i].suid_user)==0)
-        uidtouser(f_array[i].suid_user,f_array[i].suid);
-      fprintf(f_logfile,"suid_user=\"%s\" ",f_array[i].suid_user);
-    }
-    if (f_array[i].fsuid>=0)
-    {
-      fprintf(f_logfile,"fsuid=\"%d\" ",f_array[i].fsuid);
-      if (strlen(f_array[i].fsuid_user)==0)
-        uidtouser(f_array[i].fsuid_user,f_array[i].fsuid);
-      fprintf(f_logfile,"fsuid_user=\"%s\" ",f_array[i].fsuid_user);
-    }
-    if (f_array[i].ouid>=0)
-    {
-      fprintf(f_logfile,"ouid=\"%d\" ",f_array[i].ouid);
-      if (strlen(f_array[i].ouid_user)==0)
-        uidtouser(f_array[i].ouid_user,f_array[i].ouid);
-      fprintf(f_logfile,"ouid_user=\"%s\" ",f_array[i].ouid_user);
-    }
-    if (f_array[i].agid>=0)
-    {
-      fprintf(f_logfile,"agid=\"%d\" ",f_array[i].agid);
-      if (strlen(f_array[i].agid_group)==0)
-        gidtogroup(f_array[i].agid_group,f_array[i].agid);
-      fprintf(f_logfile,"agid_group=\"%s\" ",f_array[i].agid_group);
-    }
-    if (f_array[i].agid>=0)
-    {
-      fprintf(f_logfile,"gid=\"%d\" ",f_array[i].gid);
-      if (strlen(f_array[i].gid_group)==0)
-        gidtogroup(f_array[i].gid_group,f_array[i].gid);
-      fprintf(f_logfile,"gid_group=\"%s\" ",f_array[i].gid_group);
-    }
-    if (f_array[i].egid>=0)
-    {
-      fprintf(f_logfile,"egid=\"%d\" ",f_array[i].egid);
-      if (strlen(f_array[i].egid_group)==0)
-        gidtogroup(f_array[i].egid_group,f_array[i].egid);
-      fprintf(f_logfile,"egid_group=\"%s\" ",f_array[i].egid_group);
-    }
-    if (f_array[i].sgid>=0)
-    {
-      fprintf(f_logfile,"sgid=\"%d\" ",f_array[i].sgid);
-      if (strlen(f_array[i].sgid_group)==0)
-        gidtogroup(f_array[i].sgid_group,f_array[i].sgid);
-      fprintf(f_logfile,"sgid_group=\"%s\" ",f_array[i].sgid_group);
-    }
-    if (f_array[i].fsgid>=0)
-    {
-      fprintf(f_logfile,"fsgid=\"%d\" ",f_array[i].fsgid);
-      if (strlen(f_array[i].fsgid_group)==0)
-        gidtogroup(f_array[i].fsgid_group,f_array[i].fsgid);
-      fprintf(f_logfile,"fsgid_group=\"%s\" ",f_array[i].fsgid_group);
-    }
-    if (f_array[i].ogid>=0)
-    {
-      fprintf(f_logfile,"ogid=\"%d\" ",f_array[i].ogid);
-      if (strlen(f_array[i].ogid_group)==0)
-        gidtogroup(f_array[i].ogid_group,f_array[i].ogid);
-      fprintf(f_logfile,"ogid_group=\"%s\" ",f_array[i].ogid_group);
-    }
+	    if (f_array[i].auid>=0)
+	    {
+	      fprintf(f_logfile,"auid=\"%d\" ",f_array[i].auid);
+	      fprintf(f_logfile,"auid_user=\"%s\" ",f_array[i].auid_user);
+	    }
+	    if (f_array[i].uid>=0)
+	    {
+	      fprintf(f_logfile,"uid=\"%d\" ",f_array[i].uid);
+	      fprintf(f_logfile,"uid_user=\"%s\" ",f_array[i].uid_user);
+	    }
+	    if (f_array[i].euid>=0)
+	    {
+	      fprintf(f_logfile,"euid=\"%d\" ",f_array[i].euid);
+	      if (strlen(f_array[i].euid_user)==0)
+	        uidtouser(f_array[i].euid_user,f_array[i].euid);
+	      fprintf(f_logfile,"euid_user=\"%s\" ",f_array[i].euid_user);
+	    }
+	    if (f_array[i].suid>=0)
+	    {
+	      fprintf(f_logfile,"suid=\"%d\" ",f_array[i].suid);
+	      if (strlen(f_array[i].suid_user)==0)
+	        uidtouser(f_array[i].suid_user,f_array[i].suid);
+	      fprintf(f_logfile,"suid_user=\"%s\" ",f_array[i].suid_user);
+	    }
+	    if (f_array[i].fsuid>=0)
+	    {
+	      fprintf(f_logfile,"fsuid=\"%d\" ",f_array[i].fsuid);
+	      if (strlen(f_array[i].fsuid_user)==0)
+	        uidtouser(f_array[i].fsuid_user,f_array[i].fsuid);
+	      fprintf(f_logfile,"fsuid_user=\"%s\" ",f_array[i].fsuid_user);
+	    }
+	    if (f_array[i].ouid>=0)
+	    {
+	      fprintf(f_logfile,"ouid=\"%d\" ",f_array[i].ouid);
+	      if (strlen(f_array[i].ouid_user)==0)
+	        uidtouser(f_array[i].ouid_user,f_array[i].ouid);
+	      fprintf(f_logfile,"ouid_user=\"%s\" ",f_array[i].ouid_user);
+	    }
+	    if (f_array[i].agid>=0)
+	    {
+	      fprintf(f_logfile,"agid=\"%d\" ",f_array[i].agid);
+	      if (strlen(f_array[i].agid_group)==0)
+	        gidtogroup(f_array[i].agid_group,f_array[i].agid);
+	      fprintf(f_logfile,"agid_group=\"%s\" ",f_array[i].agid_group);
+	    }
+	    if (f_array[i].agid>=0)
+	    {
+	      fprintf(f_logfile,"gid=\"%d\" ",f_array[i].gid);
+	      if (strlen(f_array[i].gid_group)==0)
+	        gidtogroup(f_array[i].gid_group,f_array[i].gid);
+	      fprintf(f_logfile,"gid_group=\"%s\" ",f_array[i].gid_group);
+	    }
+	    if (f_array[i].egid>=0)
+	    {
+	      fprintf(f_logfile,"egid=\"%d\" ",f_array[i].egid);
+	      if (strlen(f_array[i].egid_group)==0)
+	        gidtogroup(f_array[i].egid_group,f_array[i].egid);
+	      fprintf(f_logfile,"egid_group=\"%s\" ",f_array[i].egid_group);
+	    }
+	    if (f_array[i].sgid>=0)
+	    {
+	      fprintf(f_logfile,"sgid=\"%d\" ",f_array[i].sgid);
+	      if (strlen(f_array[i].sgid_group)==0)
+	        gidtogroup(f_array[i].sgid_group,f_array[i].sgid);
+	      fprintf(f_logfile,"sgid_group=\"%s\" ",f_array[i].sgid_group);
+	    }
+	    if (f_array[i].fsgid>=0)
+	    {
+	      fprintf(f_logfile,"fsgid=\"%d\" ",f_array[i].fsgid);
+	      if (strlen(f_array[i].fsgid_group)==0)
+	        gidtogroup(f_array[i].fsgid_group,f_array[i].fsgid);
+	      fprintf(f_logfile,"fsgid_group=\"%s\" ",f_array[i].fsgid_group);
+	    }
+	    if (f_array[i].ogid>=0)
+	    {
+	      fprintf(f_logfile,"ogid=\"%d\" ",f_array[i].ogid);
+	      if (strlen(f_array[i].ogid_group)==0)
+	        gidtogroup(f_array[i].ogid_group,f_array[i].ogid);
+	      fprintf(f_logfile,"ogid_group=\"%s\" ",f_array[i].ogid_group);
+	    }
 
-    if (strlen(f_array[i].addr)>0)
-      fprintf(f_logfile,"addr=\"%s\" ",f_array[i].addr);
-    if (strlen(f_array[i].exe)>0)
-      fprintf(f_logfile,"exe=\"%s\" ",f_array[i].exe);
-    if (strlen(f_array[i].hostname)>0)
-      fprintf(f_logfile,"hostname=\"%s\" ",f_array[i].hostname);
-    if (strlen(f_array[i].key)>0)
-      fprintf(f_logfile,"key=\"%s\" ",f_array[i].key);
+	    if (strlen(f_array[i].addr)>0)
+	      fprintf(f_logfile,"addr=\"%s\" ",f_array[i].addr);
+	    if (strlen(f_array[i].exe)>0)
+	      fprintf(f_logfile,"exe=\"%s\" ",f_array[i].exe);
+	    if (strlen(f_array[i].hostname)>0)
+	      fprintf(f_logfile,"hostname=\"%s\" ",f_array[i].hostname);
+	    if (strlen(f_array[i].key)>0)
+	      fprintf(f_logfile,"key=\"%s\" ",f_array[i].key);
 
-    if (strlen(f_array[i].newcontext)>0)
-      fprintf(f_logfile,"newcontext=\"%s\" ",f_array[i].newcontext);
-    if (strlen(f_array[i].oldcontext)>0)
-      fprintf(f_logfile,"oldcontext=\"%s\" ",f_array[i].oldcontext);
-    if (f_array[i].pid>=0)
-      fprintf(f_logfile,"pid=\"%d\" ",f_array[i].pid);
-    if (f_array[i].ppid>=0)
-      fprintf(f_logfile,"ppid=\"%d\" ",f_array[i].ppid);
-    if (strlen(f_array[i].res)>0)
-      fprintf(f_logfile,"res=\"%s\" ",f_array[i].res);
-    if (strlen(f_array[i].seresult)>0)
-      fprintf(f_logfile,"seresult=\"%s\" ",f_array[i].seresult);
-    if (f_array[i].ses>=0)
-      fprintf(f_logfile,"ses=\"%d\" ",f_array[i].ses);
-    if (strlen(f_array[i].subj)>0)
-      fprintf(f_logfile,"subj=\"%s\" ",f_array[i].subj);
-    if (strlen(f_array[i].terminal)>0)
-      fprintf(f_logfile,"terminal=\"%s\" ",f_array[i].terminal);
-    if (strlen(f_array[i].tty)>0)
-      fprintf(f_logfile,"tty=\"%s\" ",f_array[i].tty);
-    if (strlen(f_array[i].direction)>0)
-      fprintf(f_logfile,"direction=\"%s\" ",f_array[i].direction);
-    if (strlen(f_array[i].cipher)>0)
-      fprintf(f_logfile,"cipher=\"%s\" ",f_array[i].cipher);
-    if (strlen(f_array[i].ksize)>0)
-      fprintf(f_logfile,"ksize=\"%s\" ",f_array[i].ksize);
-    if (strlen(f_array[i].mac)>0)
-      fprintf(f_logfile,"mac=\"%s\" ",f_array[i].mac);
-    if (strlen(f_array[i].pfs)>0)
-      fprintf(f_logfile,"pfs=\"%s\" ",f_array[i].pfs);
-    if (strlen(f_array[i].spid)>0)
-      fprintf(f_logfile,"spid=\"%s\" ",f_array[i].spid);
-    if (strlen(f_array[i].laddr)>0)
-      fprintf(f_logfile,"laddr=\"%s\" ",f_array[i].laddr);
-    if (strlen(f_array[i].lport)>0)
-      fprintf(f_logfile,"lport=\"%s\" ",f_array[i].lport);
+	    if (strlen(f_array[i].newcontext)>0)
+	      fprintf(f_logfile,"newcontext=\"%s\" ",f_array[i].newcontext);
+	    if (strlen(f_array[i].oldcontext)>0)
+	      fprintf(f_logfile,"oldcontext=\"%s\" ",f_array[i].oldcontext);
+	    if (f_array[i].pid>=0)
+	      fprintf(f_logfile,"pid=\"%d\" ",f_array[i].pid);
+	    if (f_array[i].ppid>=0)
+	      fprintf(f_logfile,"ppid=\"%d\" ",f_array[i].ppid);
+	    if (strlen(f_array[i].res)>0)
+	      fprintf(f_logfile,"res=\"%s\" ",f_array[i].res);
+	    if (strlen(f_array[i].seresult)>0)
+	      fprintf(f_logfile,"seresult=\"%s\" ",f_array[i].seresult);
+	    if (f_array[i].ses>=0)
+	      fprintf(f_logfile,"ses=\"%d\" ",f_array[i].ses);
+	    if (strlen(f_array[i].subj)>0)
+	      fprintf(f_logfile,"subj=\"%s\" ",f_array[i].subj);
+	    if (strlen(f_array[i].terminal)>0)
+	      fprintf(f_logfile,"terminal=\"%s\" ",f_array[i].terminal);
+	    if (strlen(f_array[i].tty)>0)
+	      fprintf(f_logfile,"tty=\"%s\" ",f_array[i].tty);
+	    if (strlen(f_array[i].direction)>0)
+	      fprintf(f_logfile,"direction=\"%s\" ",f_array[i].direction);
+	    if (strlen(f_array[i].cipher)>0)
+	      fprintf(f_logfile,"cipher=\"%s\" ",f_array[i].cipher);
+	    if (strlen(f_array[i].ksize)>0)
+	      fprintf(f_logfile,"ksize=\"%s\" ",f_array[i].ksize);
+	    if (strlen(f_array[i].mac)>0)
+	      fprintf(f_logfile,"mac=\"%s\" ",f_array[i].mac);
+	    if (strlen(f_array[i].pfs)>0)
+	      fprintf(f_logfile,"pfs=\"%s\" ",f_array[i].pfs);
+	    if (strlen(f_array[i].spid)>0)
+	      fprintf(f_logfile,"spid=\"%s\" ",f_array[i].spid);
+	    if (strlen(f_array[i].laddr)>0)
+	      fprintf(f_logfile,"laddr=\"%s\" ",f_array[i].laddr);
+	    if (strlen(f_array[i].lport)>0)
+	      fprintf(f_logfile,"lport=\"%s\" ",f_array[i].lport);
 
-    if (strlen(f_array[i].SYSCALL)>0)
-      fprintf(f_logfile,"syscall=\"%s\" ",f_array[i].SYSCALL);
-    if (f_array[i].syscall>=0)
-      fprintf(f_logfile,"syscall=\"%d\" ",f_array[i].syscall);
+	    if (strlen(f_array[i].SYSCALL)>0)
+	      fprintf(f_logfile,"syscall=\"%s\" ",f_array[i].SYSCALL);
+	    if (f_array[i].syscall>=0)
+	      fprintf(f_logfile,"syscall=\"%d\" ",f_array[i].syscall);
 
-    if (strlen(f_array[i].op)>0)
-      fprintf(f_logfile,"op=\"%s\" ",f_array[i].op);
-    if (strlen(f_array[i].vm)>0)
-      fprintf(f_logfile,"vm=\"%s\" ",f_array[i].vm);
-    if (strlen(f_array[i].cwd)>0)
-      fprintf(f_logfile,"cwd=\"%s\" ",f_array[i].cwd);
-    if (strlen(f_array[i].cmd)>0)
-      fprintf(f_logfile,"cmd=\"%s\" ",f_array[i].cmd);
-    if (strlen(f_array[i].proctitle)>0)
-      fprintf(f_logfile,"proctitle=\"%s\" ",f_array[i].proctitle);
+	    if (strlen(f_array[i].op)>0)
+	      fprintf(f_logfile,"op=\"%s\" ",f_array[i].op);
+	    if (strlen(f_array[i].vm)>0)
+	      fprintf(f_logfile,"vm=\"%s\" ",f_array[i].vm);
+	    if (strlen(f_array[i].cwd)>0)
+	      fprintf(f_logfile,"cwd=\"%s\" ",f_array[i].cwd);
+	    if (strlen(f_array[i].cmd)>0)
+	      fprintf(f_logfile,"cmd=\"%s\" ",f_array[i].cmd);
+	    if (strlen(f_array[i].proctitle)>0)
+	      fprintf(f_logfile,"proctitle=\"%s\" ",f_array[i].proctitle);
 
-    if (strlen(f_array[i].errcode)>0)
-      fprintf(f_logfile,"errcode=\"%s\" ",f_array[i].errcode);
-    if (strlen(f_array[i].errdesc)>0)
-      fprintf(f_logfile,"errdesc=\"%s\" ",f_array[i].errdesc);
-    //if (strlen(f_array[i].saddr)>0)
-      //fprintf(f_logfile,"saddr=\"%s\" ",f_array[i].saddr);
-    if (strlen(f_array[i].res_saddr)>0)
-      fprintf(f_logfile,"saddr=\"%s\" ",f_array[i].res_saddr);
-    if (strlen(f_array[i].avc)>0)
-      fprintf(f_logfile,"avc=\"%s\" ",f_array[i].avc);
-    if (strlen(f_array[i].types)>0)
-      fprintf(f_logfile,"types=\"%s\" ",f_array[i].types);
-    if (strlen(f_array[i].names)>0)
-      fprintf(f_logfile,"names=\"%s\" ",f_array[i].names);
-    if (strlen(f_array[i].acct)>0)
-      fprintf(f_logfile,"acct=\"%s\" ",f_array[i].acct);
-    if (strlen(f_array[i].unit)>0)
-      fprintf(f_logfile,"unit=\"%s\" ",f_array[i].unit);
+	    if (strlen(f_array[i].errcode)>0)
+	      fprintf(f_logfile,"errcode=\"%s\" ",f_array[i].errcode);
+	    if (strlen(f_array[i].errdesc)>0)
+	      fprintf(f_logfile,"errdesc=\"%s\" ",f_array[i].errdesc);
+	    //if (strlen(f_array[i].saddr)>0)
+	      //fprintf(f_logfile,"saddr=\"%s\" ",f_array[i].saddr);
+	    if (strlen(f_array[i].res_saddr)>0)
+	      fprintf(f_logfile,"saddr=\"%s\" ",f_array[i].res_saddr);
+	    if (strlen(f_array[i].avc)>0)
+	      fprintf(f_logfile,"avc=\"%s\" ",f_array[i].avc);
+	    if (strlen(f_array[i].types)>0)
+	      fprintf(f_logfile,"types=\"%s\" ",f_array[i].types);
+	    if (strlen(f_array[i].names)>0)
+	      fprintf(f_logfile,"names=\"%s\" ",f_array[i].names);
+	    if (strlen(f_array[i].acct)>0)
+	      fprintf(f_logfile,"acct=\"%s\" ",f_array[i].acct);
+	    if (strlen(f_array[i].unit)>0)
+	      fprintf(f_logfile,"unit=\"%s\" ",f_array[i].unit);
 
-    fprintf(f_logfile,"\n");
+	    fprintf(f_logfile,"\n");
+		}
   }
   fclose(f_logfile);
 }
@@ -1439,7 +1444,7 @@ int main()
         //mls
         first_i=copystr_start_posi_end_char(str_mls,read_buf,first_i,':',3)+1;
 
-        copystr_start_posi_end_char(str_auditid,read_buf,first_i,')',5);
+        copystr_start_posi_end_char(str_auditid,read_buf,first_i,')',32);
         int auditid=atoi(str_auditid);
         add_auditid(auditid);
       }
@@ -1451,10 +1456,10 @@ int main()
     end_buf=i_buf;
   }
 
-  sprintf(msg,"[str:900]count_uniq_auditid=\"%d\"\n",count_uniq_auditid());
+  sprintf(msg,"[str:1454]count_uniq_auditid=\"%d\"\n",count_uniq_auditid());
   deblog(msg);
 
-  sprintf(msg,"[str:895](s_audit *)malloc(sizeof(s_audit) * %d)\n",count_uniq_auditid());
+  sprintf(msg,"[str:1457](s_audit *)malloc(sizeof(s_audit) * %d)\n",count_uniq_auditid());
   deblog(msg);
   array_audit=(s_audit *)malloc(sizeof(s_audit) * count_uniq_auditid());
   memset(array_audit,0,sizeof(s_audit) * count_uniq_auditid());
@@ -1507,17 +1512,14 @@ int main()
 
 
 
-        first_i=copystr_start_posi_end_char(str_auditid,read_buf,first_i,')',5)+1;
+        first_i=copystr_start_posi_end_char(str_auditid,read_buf,first_i,')',32)+1;
         //deblog("[str:947]str_auditid:");
         //deblog(str_auditid);
         //auditid
         //int auditid=atoi(str_auditid);
         cur_audit.auditid=atoi(str_auditid);
-        //char auid[128];
-        //deblog(" [str:995]auditid=\"");
-        //deblog(str_auditid);
-        //deblog("\"");
-
+        snprintf(msg,1024,"[str:1516(main)]process auditid=%d(%s)\n",cur_audit.auditid,str_auditid);
+				deblog(msg);
         copy_val_istart(cur_audit.uid_user,read_buf,i_line_start," uid=",' ',255);
         cur_audit.uid=atoi(cur_audit.uid_user);
 				if (cur_audit.uid>=0)
@@ -1599,11 +1601,19 @@ int main()
         copy_val_istart(str_tmp,read_buf,i_line_start," pid=",' ',12);
         cur_audit.pid=atoi(str_tmp);
     		if (cur_audit.pid==ppid)
+				{
     			flag_write_audit=false;
+					snprintf(msg,1024,"[str:1601(main)]cur pid =%d\n",ppid);
+					deblog(msg);
+				}
         copy_val_istart(str_tmp,read_buf,i_line_start," ppid=",' ',12);
         cur_audit.ppid=atoi(str_tmp);
     		if (cur_audit.ppid==ppid)
+				{
     			flag_write_audit=false;
+					snprintf(msg,1024,"[str:1609(main)]cur ppid =%d\n",ppid);
+					deblog(msg);
+				}
         copy_val_istart(cur_audit.res,read_buf,i_line_start," res=",0x1d,11);
         copy_val_istart(cur_audit.seresult,read_buf,i_line_start," seresult=\"",'"',255);
         copy_val_istart(str_tmp,read_buf,i_line_start," ses=",' ',255);
