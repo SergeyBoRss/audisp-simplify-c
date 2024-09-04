@@ -152,7 +152,7 @@ char   str_ignore_val[1024];
 
 //const char *ignorefile="/etc/audisp/simplify.ignores";
 const char *ignorefile="/etc/audit/simplify.ignores";
-const char *logfile="/var/log/audisp-simplify-c";
+const char *logfile="/var/log/audisp-simplify";
 const char *deblogfile="/var/log/audisp-simplify-c.log";
 
 char pos_filter[1024];
