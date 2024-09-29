@@ -13,6 +13,10 @@ using namespace std;
 bool DEBUG=false;
 bool DEBUG_display=false;
 
+const char *ignorefile="/etc/audit/simplify.ignores";
+const char *logfile="/var/log/audisp-simplify-c";
+const char *deblogfile="/var/log/audisp-simplify-c.log";
+
 #define DEF_auid 13613018040941040726
 #define DEF_auid_user 13656647726036782632
 #define DEF_uid 10955702004391339725
@@ -150,15 +154,6 @@ char   str_ignore_key[255];
 size_t hash_ignore_key;
 char   str_ignore_val[1024];
 
-//const char *ignorefile="/etc/audisp/simplify.ignores";
-const char *ignorefile="/etc/audit/simplify.ignores";
-
-const char *logfile="/share/my/audisp-simplify-c/audisp-simplify-c.txt";
-//const char *logfile="/var/log/audisp-simplify";
-//const char *deblogfile="/tmp/ram/audit/audisp-simplify-c.log";
-const char *deblogfile="/share/my/audisp-simplify-c/audisp-simplify-c.log";
-//const char *deblogfile="/var/log/audisp-simplify-c.log";
-
 char pos_filter[1024];
 char str_tmp[10240];
 
@@ -284,6 +279,8 @@ struct s_audit
 	char   success[255];
 };
 
+
+int prev_delta_pos_find_val=0;
 int prev_id=0;
 s_audit  *array_audit;
 s_pass   *array_pass;
@@ -383,7 +380,7 @@ int init_available_hash_ignore_key()
     if (audit_reserved_key[j]==' ' || audit_reserved_key[j]=='\0')
       size_audit_reserved_key++;
   }
-	snprintf(msg,255,"[str:351(init_available_hash_ignore_key]size_audit_reserved_key=%d\n",size_audit_reserved_key);
+	snprintf(msg,255,"function init_available_hash_ignore_key:size_audit_reserved_key=%d",size_audit_reserved_key);
 	deblog(msg);
   available_hash_ignore_key=(size_t*)malloc(sizeof(size_t)*size_audit_reserved_key);
 	memset(available_hash_ignore_key,0,sizeof(size_t)*size_audit_reserved_key);
@@ -452,12 +449,14 @@ int strpos_istart(char *bufstr,int start_i,char *searchstr)
 
 bool copy_val_istart(char *val, char *bufstr, int start_i, char *filter, char stop_char,int max_char)
 {
+	//snprintf(msg,1024,"function copy_val_istart:filter %s",filter);
+	//deblog(msg);
   val[0]='\0';
   int indx=-1;
   char end_char;
   if (strlen(filter)<=2)
   {
-    deblog("[str:447]filter is short\n");
+    deblog("function copy_val_istart:filter is short\n");
     return false;
   }
   //end_char=filter[strlen(filter)-1];
@@ -465,7 +464,7 @@ bool copy_val_istart(char *val, char *bufstr, int start_i, char *filter, char st
   int n_max=strlen(bufstr)-strlen(filter)-start_i;
   if (n_max<=0)
   {
-    deblog("[str:373]strpos:buf < find str\n");
+    deblog("function copy_val_istart:strpos:buf < find str\n");
     deblog(bufstr);
     deblog("\n");
     deblog(filter);
@@ -522,6 +521,13 @@ bool copy_val_istart(char *val, char *bufstr, int start_i, char *filter, char st
           if (val[k-indx-j]==end_char)
           {
             val[k-indx-j]='\0';
+
+						if (DEBUG==true)
+						{
+							snprintf(msg,1024,"function copy_val_istart:find key filter=%s,start pos=%d, find pos=%d, end_pos=%d, delta pos in str=%d",filter,start_i,indx,k,indx-start_i);
+							deblog(msg);
+						}
+						prev_delta_pos_find_val=indx-start_i;
             return true;
           }
           if (k-indx-j>=max_char)
@@ -533,6 +539,7 @@ bool copy_val_istart(char *val, char *bufstr, int start_i, char *filter, char st
       }
     }
   }
+	deblog("function copy_val_istart:no exist");
   return false;
 }
 
@@ -629,7 +636,7 @@ void strnaddchar(char *dst, char add_char, int sz)
 		}
 		else
 		{
-			snprintf(msg,1024,"[str:630]size>sz sz=%d len=%d str=%s\n",sz,strlen(dst),dst);
+			snprintf(msg,1024,"function strnaddchar:size>sz sz=%d len=%d str=%s\n",sz,strlen(dst),dst);
 			deblog(msg);
 		}
 	}
@@ -681,14 +688,12 @@ int add_ignore(size_t key, char *val)
       array_ignore[i].hash_key=key;
       if (strlen(array_ignore[i].value)>0)
   	  {
-				deblog("[str:664(add_ignore)]append");
+				deblog("function add_ignore:append");
         strnaddchar(array_ignore[i].value,' ',1024);
-        deblog("[str:666]\n");
   	  }
-			sprintf(msg,"[str:668(add_ignore)]i=%d,key=%zu,val=%s",i,key,val);
+			sprintf(msg,"function add_ignore:i=%d,key=%zu,val=%s",i,key,val);
       deblog(msg);
       strnadd(array_ignore[i].value, val, 255, 1024);
-      deblog("[str:671]\n");
       return i;
     }
   }
@@ -716,15 +721,16 @@ int add_auditid(unsigned int test_auditid,int prev_id)
       }
     }
   }
-	sprintf(msg,"[str:799]error size uniq_auditid is small %d\n",i);
-	deblog(msg);
+	if (DEBUG == true)
+	{
+		sprintf(msg,"function add_auditid:error size uniq_auditid is small %d\n",i);
+		deblog(msg);
+	}
 	return 0;
 }
 
 int auditid_to_id(s_audit *f_array, int array_count, unsigned int test_auditid)
 {
-	snprintf(msg,1024,"[str:725(auditid_to_id)]array_count=%d, test_auditid=%d prev_id=%d\n",array_count,test_auditid,prev_id);
-	deblog(msg);
 	if (f_array[prev_id].auditid==test_auditid)
 		return prev_id;
 	if ((prev_id+1)<array_count)
@@ -951,7 +957,7 @@ bool is_filter(size_t hash_ignore_key,char *val)
 
 int save_to_file(s_audit *f_array,int array_count)
 {
-  sprintf(msg,"[str:889(save_to_file)]array_count=%d\n",array_count);
+  sprintf(msg,"save_to_file:count=%d\n",array_count);
   deblog(msg);
 
   if ((f_logfile=fopen(logfile,"a"))==NULL)
@@ -1154,7 +1160,8 @@ int save_to_file(s_audit *f_array,int array_count)
 
 int cur_audit_to_array(s_audit *f_array,int array_count,s_audit f_cur)
 {
-	sprintf(msg,"function cur_audit_to_array: add %d to array\n",f_cur.auditid);
+	//clock_t t_start = clock();
+	sprintf(msg,"> cur_audit_to_array: add %d to array",f_cur.auditid);
 	deblog(msg);
 	int i;
 	/*for (i = 0; i < array_count; i++)
@@ -1168,6 +1175,8 @@ int cur_audit_to_array(s_audit *f_array,int array_count,s_audit f_cur)
 	if (f_array[prev_id].auditid==f_cur.auditid)
 	{
 		memcpy((&f_array[prev_id]),(&f_cur),sizeof(s_audit));
+		//clock_t t_end = clock();
+		//deblog("cur_audit_to_array: > prev_id");
 		return prev_id;
 	}
 
@@ -1177,6 +1186,7 @@ int cur_audit_to_array(s_audit *f_array,int array_count,s_audit f_cur)
 		{
 			prev_id++;
 			memcpy((&f_array[prev_id]),(&f_cur),sizeof(s_audit));
+			//deblog("cur_audit_to_array: > next_id");
 			return prev_id;
 		}
 	}
@@ -1188,12 +1198,14 @@ int cur_audit_to_array(s_audit *f_array,int array_count,s_audit f_cur)
     {
       memcpy((&f_array[i]),(&f_cur),sizeof(s_audit));
 			prev_id=i;
+			//deblog("cur_audit_to_array: > full scan,exist auditid");
 			return i;
 		}
 		if (f_array[i].auditid==0)
     {
       memcpy((&f_array[i]),(&f_cur),sizeof(s_audit));
 			prev_id=i;
+			//deblog("cur_audit_to_array: > full scan,new auditid");
 			return i;
 		}
       /*if (strlen(f_cur.cmd)>0)
@@ -1232,12 +1244,12 @@ int cur_audit_to_array(s_audit *f_array,int array_count,s_audit f_cur)
 
 int read_ignorefile_to_buf(char *buf,int sz)
 {
-  deblog("[str:1129]read_ignorefile_to_buf\n");
+  deblog("function read_ignorefile_to_buf");
   f_ignorefile = fopen(ignorefile,"r");
 
   if( f_ignorefile == NULL )
   {
-      sprintf(msg,"[str:1134(read_ignorefile_to_buf)]no ignore file %s\n",ignorefile);
+      sprintf(msg,"function read_ignorefile_to_buf:no ignore file %s",ignorefile);
       deblog(msg);
 			count_ignore_key=0;
       return 0;
@@ -1444,7 +1456,7 @@ bool xlate_saddr(s_audit *c_audit, char *saddr)
 
 int read_STDIN_to_buf(char *buf,int sz,int start_i)
 {
-	deblog("[str:1447]read_STDIN_to_buf start");
+	deblog("function read_STDIN_to_buf start");
 	char c_char;
 	int i=start_i;
 	int i_line_start=0;
@@ -1481,11 +1493,11 @@ int read_STDIN_to_buf(char *buf,int sz,int start_i)
 			if (i_line_start>0)
 				buf[i_line_start-1]='\0';
 			buf[sz-1]='\0';
-			deblog("[str:1484]read_STDIN_to_buf end");
+			deblog("func read_STDIN_to_buf end");
 			return i_line_start;
 		}
   }
-	deblog("[str:1488]read_STDIN_to_buf end");
+	deblog("function read_STDIN_to_buf end");
   return 0;
 }
 
@@ -1526,6 +1538,7 @@ int parsing_buf(char *buf,int sz)
     if (buf[i]=='\n' || buf[i]=='\0')
     {
       int first_i=-1;
+			prev_delta_pos_find_val=0;
       first_i=strpos_istart(buf,i_line_start,pos_filter);
       if (first_i>=0)
       {
@@ -1546,10 +1559,10 @@ int parsing_buf(char *buf,int sz)
         first_i=copystr_start_posi_end_char(str_mls,buf,first_i,':',3)+1;
         cur_audit.t_mls=atoi(str_mls);
         first_i=copystr_start_posi_end_char(str_auditid,buf,first_i,')',12)+1;
+				snprintf(msg,255,"function parsing_buf:find auditid=%s",str_auditid);
+				deblog(msg);
         cur_audit.auditid=atoi(str_auditid);
 				int find_id_in_auditid=auditid_to_id(array_audit,c_uniq_auditid,cur_audit.auditid);
-				//snprintf(msg,255,"[str:1511]cur_audit.auditid=%d find_id_in_auditid=%d\n",cur_audit.auditid,find_id_in_auditid);
-				//deblog(msg);
 
 				//=======clear====
 				if (array_audit[find_id_in_auditid].auditid==0)
@@ -1839,9 +1852,6 @@ int parsing_buf(char *buf,int sz)
 				}
 				if (last_isset==true)
 					cur_audit.name_isset=last_isset;
-
-				sprintf(msg,"[str:1829(parsing_buf)]cur_audit.auditid=%d\n",cur_audit.auditid);
-				deblog(msg);
 				copy_val_istart(cur_audit.acct,read_buf,i_line_start," acct=\"",'"',255);
 				copy_val_istart(cur_audit.unit,read_buf,i_line_start," unit=\"",'"',255);
 				copy_val_istart(cur_audit.success,read_buf,i_line_start," success=",' ',255);
@@ -1854,8 +1864,7 @@ int parsing_buf(char *buf,int sz)
 					cur_audit.argc=atoi(str_tmp);
 					cur_audit.args[0]='\0';
 					//field argc, count arg
-					//snprintf(msg,255,"[str:1677]i_line_start=%d,argc=%d\n",i_line_start,cur_audit.argc);
-					//deblog(msg);
+
 					for (int ai=0; ai<cur_audit.argc; ai++)
 					{
 						snprintf(name_ai,9,"a%d=\"",ai);
@@ -1939,7 +1948,6 @@ int parsing_buf(char *buf,int sz)
       }
 
       i_line_start=i+1;
-			deblog("[str:1904(parsing_buf)]cur_audit_to_array\n");
 	   cur_audit_to_array(array_audit,c_uniq_auditid,cur_audit);
     }
   }
@@ -1956,13 +1964,13 @@ int filtering(s_audit *f_array,int array_count)
 		{
 			if (f_array[i].pid == pid || f_array[i].pid == ppid)
 			{
-				snprintf(msg,1024,"[str:1630(filtering)]delete auditid=%u filter pid\n",f_array[i].auditid);
+				snprintf(msg,1024,"filtering:delete auditid=%u filter pid",f_array[i].auditid);
 				deblog(msg);
 				f_array[i].auditid=0;
 			}
 			if (f_array[i].ppid == pid || f_array[i].pid == ppid)
 			{
-				snprintf(msg,1024,"[str:1636(filtering)]delete auditid=%u filter ppid\n",f_array[i].auditid);
+				snprintf(msg,1024,"filtering:delete auditid=%u filter ppid",f_array[i].auditid);
 				deblog(msg);
 				f_array[i].auditid=0;
 			}
@@ -2006,6 +2014,7 @@ int main(int argc,char *argv[])
 		}
 	}
 	deblog("\n[str:1856]start\n");
+
 	pid=getpid();
   ppid=getppid();
 
@@ -2037,20 +2046,19 @@ int main(int argc,char *argv[])
 	{
 		pos_i_in_STDIN=read_STDIN_to_buf(read_buf,size_buf,pos_i_in_STDIN);
 		// === parsing ===
-		deblog("[str:1974]parsing...\n");
 		c_uniq_auditid=count_uniq_auditid();
 
-		sprintf(msg,"[str:1976]c_uniq_auditid=%d\n",c_uniq_auditid);
+		sprintf(msg,"uniq auditid:%d",c_uniq_auditid);
 		deblog(msg);
 		array_audit=(s_audit *)malloc(sizeof(s_audit) * c_uniq_auditid);
 		memset(array_audit,0,sizeof(s_audit) * c_uniq_auditid);
-		deblog("[str:1718]parsing_buf\n");
+		deblog("parsing_buf");
 		parsing_buf(read_buf,size_buf);
-		deblog("[str:1720]filtering\n");
+		deblog("filtering");
 		filtering(array_audit,c_uniq_auditid);
-		deblog("[str:1722]save_to_file\n");
+		deblog("save_to_file");
 		save_to_file(array_audit,c_uniq_auditid);
-		deblog("[str:1724]free\n");
+		deblog("free mem");
 		free(array_audit);
 		// === parsing ===
 		if (pos_i_in_STDIN!=0)
