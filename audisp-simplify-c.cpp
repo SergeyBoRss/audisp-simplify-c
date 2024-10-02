@@ -279,7 +279,7 @@ struct s_audit
 	char   success[255];
 };
 
-
+bool enable_scan_extend_UID=true;
 int prev_delta_pos_find_val=0;
 int prev_id=0;
 s_audit  *array_audit;
@@ -1613,133 +1613,172 @@ int parsing_buf(char *buf,int sz)
 					printf("[%d:%d]%s\n",i_line_start,i,msg);
 				}*/
 				//======================================================13
-				last_isset=array_audit[find_id_in_auditid].uid_isset;
 
-				cur_audit.uid_isset=copy_val_istart(cur_audit.uid_user,read_buf,i_line_start," uid=",' ',255);
-				if (cur_audit.uid_isset==true)
-				{
-					cur_audit.uid=atoi(cur_audit.uid_user);
-					if (cur_audit.uid>=0)
-					{
-						copy_val_istart(cur_audit.uid_user,read_buf,i_line_start," UID=\"",'"',255);
-						if (strlen(cur_audit.uid_user)==0)
-							uidtouser(cur_audit.uid_user,cur_audit.uid);
-					}
-				}
-				if (last_isset==true)
-					cur_audit.uid_isset=last_isset;
-
-				last_isset=array_audit[find_id_in_auditid].auid_isset;
+				bool auid_last_isset=array_audit[find_id_in_auditid].auid_isset;
 				cur_audit.auid_isset=copy_val_istart(cur_audit.auid_user,read_buf,i_line_start,"auid=",' ',255);
 				if (cur_audit.auid_isset==true)
 				{
 					cur_audit.auid=atoi(cur_audit.auid_user);
-					copy_val_istart(cur_audit.auid_user,read_buf,i_line_start," AUID=\"",'"',255);
-					if (strlen(cur_audit.auid_user)==0)
+					if ( enable_scan_extend_UID==true )
+					{
+						copy_val_istart(cur_audit.auid_user,read_buf,i_line_start," AUID=\"",'"',255);
+						if (strlen(cur_audit.auid_user)==0)
+							uidtouser(cur_audit.auid_user,cur_audit.auid);
+					}
+					else
 						uidtouser(cur_audit.auid_user,cur_audit.auid);
 				}
-				if (last_isset==true)
-					cur_audit.auid_isset=last_isset;
+				if (auid_last_isset==true)
+					cur_audit.auid_isset=auid_last_isset;
 
-				last_isset=array_audit[find_id_in_auditid].euid_isset;
-				cur_audit.euid_isset=copy_val_istart(cur_audit.euid_user,read_buf,i_line_start," euid=",' ',255);
-				if (cur_audit.euid_isset==true)
+
+				bool uid_last_isset=array_audit[find_id_in_auditid].uid_isset;
+				cur_audit.uid_isset=copy_val_istart(cur_audit.uid_user,read_buf,i_line_start," uid=",' ',255);
+				if (cur_audit.uid_isset==true)
 				{
-					cur_audit.euid=atoi(cur_audit.euid_user);
-					copy_val_istart(cur_audit.suid_user,read_buf,i_line_start," EUID=\"",'"',255);
-				}
-				if (last_isset==true)
-					cur_audit.euid_isset=last_isset;
+					cur_audit.uid=atoi(cur_audit.uid_user);
+					copy_val_istart(cur_audit.uid_user,read_buf,i_line_start," UID=\"",'"',255);
+					if (strlen(cur_audit.uid_user)==0)
+					{
+						enable_scan_extend_UID=false;
+						uidtouser(cur_audit.uid_user,cur_audit.uid);
+					}
 
-				last_isset=array_audit[find_id_in_auditid].suid_isset;
-				cur_audit.suid_isset=copy_val_istart(cur_audit.suid_user,read_buf,i_line_start," suid=",' ',255);
-				if (cur_audit.suid_isset==true)
-				{
-					cur_audit.suid=atoi(cur_audit.suid_user);
-					copy_val_istart(cur_audit.suid_user,read_buf,i_line_start," SUID=\"",'"',255);
 				}
-				if (last_isset==true)
-					cur_audit.suid_isset=last_isset;
+				if (uid_last_isset==true)
+					cur_audit.uid_isset=uid_last_isset;
 
-				last_isset=array_audit[find_id_in_auditid].fsuid_isset;
-				cur_audit.fsuid_isset=copy_val_istart(cur_audit.fsuid_user,read_buf,i_line_start," fsuid=",' ',255);
-				if (cur_audit.fsuid_isset==true)
-				{
-					cur_audit.fsuid=atoi(cur_audit.fsuid_user);
-					copy_val_istart(cur_audit.fsuid_user,read_buf,i_line_start," FSUID=\"",'"',255);
-				}
-				if (last_isset==true)
-					cur_audit.fsuid_isset=last_isset;
-
-				last_isset=array_audit[find_id_in_auditid].ouid_isset;
-				cur_audit.ouid_isset=copy_val_istart(cur_audit.ouid_user,read_buf,i_line_start," ouid=",' ',255);
-				if (cur_audit.ouid_isset==true)
-				{
-					cur_audit.ouid=atoi(cur_audit.ouid_user);
-					copy_val_istart(cur_audit.ouid_user,read_buf,i_line_start," OUID=\"",'"',255);
-				}
-				if (last_isset==true)
-					cur_audit.ouid_isset=last_isset;
-
-				last_isset=array_audit[find_id_in_auditid].gid_isset;
+				bool gid_last_isset=array_audit[find_id_in_auditid].gid_isset;
 				cur_audit.gid_isset=copy_val_istart(cur_audit.gid_group,read_buf,i_line_start," gid=",' ',255);
 				if (cur_audit.gid_isset==true)
 				{
 					cur_audit.gid=atoi(cur_audit.gid_group);
 					copy_val_istart(cur_audit.gid_group,read_buf,i_line_start," GID=\"",'"',255);
+					if (strlen(cur_audit.gid_group)==0)
+						gidtogroup(cur_audit.gid_group,cur_audit.gid);
 				}
-				if (last_isset==true)
-					cur_audit.gid_isset=last_isset;
+				if (gid_last_isset==true)
+					cur_audit.gid_isset=gid_last_isset;
 
-				last_isset=array_audit[find_id_in_auditid].agid_isset;
-				cur_audit.agid_isset=copy_val_istart(cur_audit.agid_group,read_buf,i_line_start," agid=",' ',255);
-				if (cur_audit.agid_isset==true)
+				bool euid_last_isset=array_audit[find_id_in_auditid].euid_isset;
+				cur_audit.euid_isset=copy_val_istart(cur_audit.euid_user,read_buf,i_line_start," euid=",' ',255);
+				if (cur_audit.euid_isset==true)
 				{
-					cur_audit.agid=atoi(cur_audit.agid_group);
-					copy_val_istart(cur_audit.agid_group,read_buf,i_line_start," AGID=\"",'"',255);
+					cur_audit.euid=atoi(cur_audit.euid_user);
+					copy_val_istart(cur_audit.suid_user,read_buf,i_line_start," EUID=\"",'"',255);
+					if (strlen(cur_audit.euid_user)==0)
+						uidtouser(cur_audit.euid_user,cur_audit.euid);
 				}
-				if (last_isset==true)
-					cur_audit.agid_isset=last_isset;
+				if (euid_last_isset==true)
+					cur_audit.euid_isset=euid_last_isset;
 
-				last_isset=array_audit[find_id_in_auditid].egid_isset;
-				cur_audit.egid_isset=copy_val_istart(cur_audit.egid_group,read_buf,i_line_start," egid=",' ',255);
-				if (cur_audit.egid_isset==true)
+				bool suid_last_isset=array_audit[find_id_in_auditid].suid_isset;
+				cur_audit.suid_isset=copy_val_istart(cur_audit.suid_user,read_buf,i_line_start," suid=",' ',255);
+				if (cur_audit.suid_isset==true)
 				{
-					cur_audit.egid=atoi(cur_audit.egid_group);
-					copy_val_istart(cur_audit.sgid_group,read_buf,i_line_start," EGID=\"",'"',255);
+					cur_audit.suid=atoi(cur_audit.suid_user);
+					copy_val_istart(cur_audit.suid_user,read_buf,i_line_start," SUID=\"",'"',255);
+					if (strlen(cur_audit.suid_user)==0)
+						uidtouser(cur_audit.suid_user,cur_audit.suid);
 				}
-				if (last_isset==true)
-					cur_audit.egid_isset=last_isset;
+				if (suid_last_isset==true)
+					cur_audit.suid_isset=suid_last_isset;
 
-				last_isset=array_audit[find_id_in_auditid].sgid_isset;
-				cur_audit.sgid_isset=copy_val_istart(cur_audit.sgid_group,read_buf,i_line_start," sgid=",' ',255);
-				if (cur_audit.sgid_isset==true)
+				bool fsuid_last_isset=array_audit[find_id_in_auditid].fsuid_isset;
+				cur_audit.fsuid_isset=copy_val_istart(cur_audit.fsuid_user,read_buf,i_line_start," fsuid=",' ',255);
+				if (cur_audit.fsuid_isset==true)
 				{
-					cur_audit.sgid=atoi(cur_audit.sgid_group);
-					copy_val_istart(cur_audit.sgid_group,read_buf,i_line_start," SGID=\"",'"',255);
+					cur_audit.fsuid=atoi(cur_audit.fsuid_user);
+					copy_val_istart(cur_audit.fsuid_user,read_buf,i_line_start," FSUID=\"",'"',255);
+					if (strlen(cur_audit.fsuid_user)==0)
+						uidtouser(cur_audit.fsuid_user,cur_audit.fsuid);
 				}
-				if (last_isset==true)
-					cur_audit.sgid_isset=last_isset;
+				if (fsuid_last_isset==true)
+					cur_audit.fsuid_isset=fsuid_last_isset;
 
-				last_isset=array_audit[find_id_in_auditid].fsgid_isset;
-				cur_audit.fsgid_isset=copy_val_istart(cur_audit.fsgid_group,read_buf,i_line_start," fsgid=",' ',255);
-				if (cur_audit.fsgid_isset==true)
+				bool ouid_last_isset=array_audit[find_id_in_auditid].ouid_isset;
+				cur_audit.ouid_isset=copy_val_istart(cur_audit.ouid_user,read_buf,i_line_start," ouid=",' ',255);
+				if (cur_audit.ouid_isset==true)
 				{
-					cur_audit.fsgid=atoi(cur_audit.fsgid_group);
-					copy_val_istart(cur_audit.fsgid_group,read_buf,i_line_start," FSGID=\"",'"',255);
+					cur_audit.ouid=atoi(cur_audit.ouid_user);
+					copy_val_istart(cur_audit.ouid_user,read_buf,i_line_start," OUID=\"",'"',255);
+					if (strlen(cur_audit.ouid_user)==0)
+						uidtouser(cur_audit.ouid_user,cur_audit.ouid);
 				}
-				if (last_isset==true)
-					cur_audit.fsgid_isset=last_isset;
+				if (ouid_last_isset==true)
+					cur_audit.ouid_isset=ouid_last_isset;
 
-				last_isset=array_audit[find_id_in_auditid].ogid_isset;
+				bool ogid_last_isset=array_audit[find_id_in_auditid].ogid_isset;
 				cur_audit.ogid_isset=copy_val_istart(cur_audit.ogid_group,read_buf,i_line_start," ogid=",' ',255);
 				if (cur_audit.ogid_isset==true)
 				{
 					cur_audit.ogid=atoi(cur_audit.ogid_group);
 					copy_val_istart(cur_audit.ogid_group,read_buf,i_line_start," OGID=\"",'"',255);
+					if (strlen(cur_audit.ogid_group)==0)
+						gidtogroup(cur_audit.ogid_group,cur_audit.ogid);
 				}
-				if (last_isset==true)
-					cur_audit.ogid_isset=last_isset;
+				if (ogid_last_isset==true)
+					cur_audit.ogid_isset=ogid_last_isset;
+
+				bool agid_last_isset=array_audit[find_id_in_auditid].agid_isset;
+				cur_audit.agid_isset=copy_val_istart(cur_audit.agid_group,read_buf,i_line_start," agid=",' ',255);
+				if (cur_audit.agid_isset==true)
+				{
+					cur_audit.agid=atoi(cur_audit.agid_group);
+					copy_val_istart(cur_audit.agid_group,read_buf,i_line_start," AGID=\"",'"',255);
+					if (strlen(cur_audit.agid_group)==0)
+						gidtogroup(cur_audit.agid_group,cur_audit.agid);
+				}
+				if (agid_last_isset==true)
+					cur_audit.agid_isset=agid_last_isset;
+
+				bool egid_last_isset=array_audit[find_id_in_auditid].egid_isset;
+				cur_audit.egid_isset=copy_val_istart(cur_audit.egid_group,read_buf,i_line_start," egid=",' ',255);
+				if (cur_audit.egid_isset==true)
+				{
+					cur_audit.egid=atoi(cur_audit.egid_group);
+					copy_val_istart(cur_audit.sgid_group,read_buf,i_line_start," EGID=\"",'"',255);
+					if (strlen(cur_audit.egid_group)==0)
+						gidtogroup(cur_audit.egid_group,cur_audit.egid);
+				}
+				if (egid_last_isset==true)
+					cur_audit.egid_isset=egid_last_isset;
+
+				bool sgid_last_isset=array_audit[find_id_in_auditid].sgid_isset;
+				cur_audit.sgid_isset=copy_val_istart(cur_audit.sgid_group,read_buf,i_line_start," sgid=",' ',255);
+				if (cur_audit.sgid_isset==true)
+				{
+					cur_audit.sgid=atoi(cur_audit.sgid_group);
+					copy_val_istart(cur_audit.sgid_group,read_buf,i_line_start," SGID=\"",'"',255);
+					if (strlen(cur_audit.sgid_group)==0)
+						gidtogroup(cur_audit.sgid_group,cur_audit.sgid);
+				}
+				if (sgid_last_isset==true)
+					cur_audit.sgid_isset=sgid_last_isset;
+
+				bool fsgid_last_isset=array_audit[find_id_in_auditid].fsgid_isset;
+				cur_audit.fsgid_isset=copy_val_istart(cur_audit.fsgid_group,read_buf,i_line_start," fsgid=",' ',255);
+				if (cur_audit.fsgid_isset==true)
+				{
+					cur_audit.fsgid=atoi(cur_audit.fsgid_group);
+					copy_val_istart(cur_audit.fsgid_group,read_buf,i_line_start," FSGID=\"",'"',255);
+					if (strlen(cur_audit.fsgid_group)==0)
+						gidtogroup(cur_audit.fsgid_group,cur_audit.fsgid);
+				}
+				if (fsgid_last_isset==true)
+					cur_audit.fsgid_isset=fsgid_last_isset;
+
+				ogid_last_isset=array_audit[find_id_in_auditid].ogid_isset;
+				cur_audit.ogid_isset=copy_val_istart(cur_audit.ogid_group,read_buf,i_line_start," ogid=",' ',255);
+				if (cur_audit.ogid_isset==true)
+				{
+					cur_audit.ogid=atoi(cur_audit.ogid_group);
+					copy_val_istart(cur_audit.ogid_group,read_buf,i_line_start," OGID=\"",'"',255);
+					if (strlen(cur_audit.ogid_group)==0)
+						gidtogroup(cur_audit.ogid_group,cur_audit.ogid);
+				}
+				if (ogid_last_isset==true)
+					cur_audit.ogid_isset=ogid_last_isset;
 
 				copy_val_istart(cur_audit.addr,read_buf,i_line_start," addr=\"",'"',255);
 				copy_val_istart(cur_audit.exe,read_buf,i_line_start," exe=\"",'"',4096);
