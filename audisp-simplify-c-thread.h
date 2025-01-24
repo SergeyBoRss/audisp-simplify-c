@@ -20,9 +20,10 @@
 #else
     #include <stdatomic.h> // for `atomic_*` types in C
 #endif
-//#include <zlib.h>
+#include <assert.h>
+#include <zlib.h>
 
-#define COUNT_PARALLEL_PARSING 4
+#define COUNT_PARALLEL_PARSING 3
 #define SIZE_BUF 65536
 //#define SIZE_SKIPPED_QUEUE 15
 #define COUNT_SEQ_MEM_PARSING 40
@@ -33,12 +34,16 @@
 #define MAX_AUDIT_BEFORE_SAVE_TO_FILE 110
 #define SAVE_AUDIT 100
 #define STAT_INTERVAL 10
+#define ZLEVEL 9
+#define CHUNK 16384
 
 using namespace std;
 
 extern const char *ignorefile;
 extern const char *logfile;
 extern const char *storefile;
+extern const char *compressfile;
+extern const char *uncompressfile;
 extern const char *deblogfile;
 extern const char *statfile;
 extern const char *adminfile;
@@ -194,6 +199,7 @@ extern pthread_t T_parsing_line[COUNT_PARALLEL_PARSING];
 extern pthread_t T_relocate_audit;
 extern pthread_t T_save_file;
 extern pthread_t T_stat;
+extern pthread_t T_compress_file;
 
 extern atomic_bool ATOM_read_STDIN_run;
 extern atomic_int  ATOM_line_read;
@@ -230,6 +236,9 @@ extern atomic_int  ATOM_STAT_line_auditd;
 
 extern atomic_bool ATOM_cmd_stop;
 extern atomic_bool ATOM_cmd_logrotate;
+extern atomic_bool ATOM_cmd_logrotated;
+extern atomic_bool ATOM_cmd_logrotategz;
+extern atomic_bool ATOM_compress_gz;
 extern atomic_bool ATOM_cmd_pause;
 
 extern int         size_buf;
@@ -265,6 +274,7 @@ void *F_relocate_audit       (void* varray_audit);
 void  write_stat();
 void  print_stat();
 void *F_stat                 (void*);
-//int push_skipped_queue(char *buf, int start_seq_mem_parsing, int end_seq_mem_parsing);
+void *F_compress_file        (void*);
+int   f_zlib                 (char *ufile, char *cfile, int level);
 
 #endif // __AUDISP_SIMPLIFY_C_THREAD_H__
