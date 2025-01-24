@@ -27,6 +27,7 @@ void deblog(char *msg);
 void debbuf(int istart,int iend,char *buf);
 void printbuf(char *buf);
 void print_ALL_audit();
+void print_cur_audit(s_audit cur_audit);
 void print_audit(s_audit *f_array,int auditid);
 void clear_buf(int istart,int iend,char *buf);
 int strpos_istart(char *bufstr,int start_i,int end_i,char *searchstr);
