@@ -19,6 +19,7 @@ pthread_t T_parsing_line[COUNT_PARALLEL_PARSING];
 pthread_t T_relocate_audit;
 pthread_t T_save_file;
 pthread_t T_stat;
+pthread_t T_compress_file;
 
 atomic_bool ATOM_THREAD_read_STDIN_run=false;
 atomic_int  ATOM_line_read=0;
@@ -59,6 +60,9 @@ atomic_int  ATOM_STAT_line_auditd=0;
 
 atomic_bool ATOM_cmd_stop=false;
 atomic_bool ATOM_cmd_logrotate=false;
+atomic_bool ATOM_cmd_logrotated=false;
+atomic_bool ATOM_cmd_logrotategz=false;
+atomic_bool ATOM_compress_gz=false;
 atomic_bool ATOM_cmd_pause=false;
 
 int       size_buf=SIZE_BUF;
@@ -136,6 +140,14 @@ void admin_file(const char *adminfile)
       {
         ATOM_cmd_logrotate.store(true);
       }
+      if (strncmp(str_cmd,"logrotated",24)==0)
+      {
+        ATOM_cmd_logrotated.store(true);
+      }
+      if (strncmp(str_cmd,"compress",24)==0)
+      {
+        ATOM_cmd_logrotategz.store(true);
+      }
       if (strncmp(str_cmd,"debug to file",24)==0)
       {
         DEBUG=true;
@@ -170,7 +182,8 @@ void admin_file(const char *adminfile)
         printf("    pause off        : read STDIO, store to buffer and parsing\n");
         printf("    stop             : set signal to stop all thread, and close programm\n");
         printf("    logrotate        : move %s to %s\n",logfile,storefile);
-        //printf("    compress        : compress %s to %s\n",logfile,storefile);
+        printf("    logrotated       : move %s to %s.yyyymmdd_HHMMSS\n",logfile,storefile);
+        printf("    compress         : compress %s to %s.gz\n",logfile,storefile);
         printf("    debug to file    : set on debug to file %s",deblogfile);
         printf("    debug to display : set on debug to display");
         printf("    debug off        : set off debug to file and display");
@@ -391,7 +404,7 @@ void *F_coordinator(void* vbuf)
       //mesg in quiet
       if (ATOM_end_seq_mem_parsing[k].load()!=0)
       {
-        flag_sleep=false;
+
         MTX_parsing_line_read_seq.lock();
 
         int i_line_start=ATOM_start_seq_mem_parsing[k].load();
@@ -400,7 +413,7 @@ void *F_coordinator(void* vbuf)
         ATOM_start_seq_mem_parsing[k].store(0);
         ATOM_end_seq_mem_parsing[k].store(0);
 
-        //search free thread
+        //search free thread for parsing
         if (ATOM_end_seq_mem_parsing[0].load()==0)
         {
           ATOM_start_seq_mem_parsing[0].store(i_line_start);
@@ -412,8 +425,12 @@ void *F_coordinator(void* vbuf)
         else
         {
           MTX_parsing_line_read_seq.unlock();
-          //snprintf(msg,255,"[%d]process not parsing str[%d-%d]\n",k,i_line_start,i_line_end);
-          //deblog(msg);
+          flag_sleep=false;
+          if ((DEBUG==true) || (DEBUG_DISPLAY==true))
+          {
+            snprintf(msg,255,"coordinator processed seq[%d] str[%d-%d]",k,i_line_start,i_line_end);
+            deblog(msg);
+            }
           F_parsing_string_to_auditid(buf,i_line_start,i_line_end,array_audit,-1);
           ATOM_line_read.fetch_sub(1);
           int number_line_in_queue;
@@ -615,7 +632,7 @@ void *F_parsing_buf(void* vbuf)
   int i,i_start;
   int i_line_start=0;
 	int i_line_end=0;
-  int coun_line_for_read;
+  int coun_line_for_read=-1;
   int coun_thread_parsing_run;
 
   pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, 0x00);
@@ -682,11 +699,11 @@ void *F_parsing_buf(void* vbuf)
           if (k>=COUNT_SEQ_MEM_PARSING)
           {
             printf("error, too many audit events, write audit to stdout\n");
-            for (int i=i_line_start; i<i_line_end; i++)
+            for (int m=i_line_start; m<i_line_end; m++)
             {
-              printf("%c",buf[i]);
+              printf("%c",buf[m]);
               //clear str in buf
-              buf[i]='\0';
+              buf[m]='\0';
             }
             printf("\n");
           }
@@ -716,9 +733,20 @@ void *F_parsing_buf(void* vbuf)
       //==========================
       if (ATOM_THREAD_read_STDIN_run.load()==false)
       {
+        coun_line_for_read=0;
+        //if (coun_line_for_read==-1)
+        //{
+          for (int n=0; n<SIZE_BUF; n++)
+          {
+            if (buf[n]=='\n')
+              coun_line_for_read++;
+          }
+        //}
         if (coun_line_for_read==0)
         {
           deblog((char *)"=== end parsing_buf ===");
+          if (DEBUG_LEVEL>3)
+            printbuf(buf);
           break;
         }
       }
@@ -731,8 +759,7 @@ void *F_parsing_buf(void* vbuf)
         {
           //test use size buf audit
           //if count filled array audit >= 80 % size audit F_save_file
-          if (DEBUG_LEVEL>0)
-            deblog((char *)"F_parsing_buf:");
+
           if (count_array_audit(0)>MAX_AUDIT_BEFORE_SAVE_TO_FILE)
           {
               //save_to file 60% audit
@@ -970,16 +997,51 @@ void *F_save_file(void* varray_audit)
 
   while (1)
   {
-    //deblog("sem wait:SEM_save");
-    sem_wait(&SEM_save);
     //===== adminfile cmd storefile ====
     if (ATOM_cmd_logrotate.load()==true)
     {
+      deblog("logrotate start");
       rename(logfile,storefile);
       ATOM_cmd_logrotate.store(false);
-      sem_wait(&SEM_save);
+      deblog("logrotate end");
+      //sem_wait(&SEM_save);
+    }
+    if (ATOM_cmd_logrotated.load()==true)
+    {
+      deblog("logrotated start");
+      char storefiled_extdate[256];
+      //====curent time====
+      struct tm *local_tm;
+      struct tm  l_tm;
+      time_t t_shtamp;
+      t_shtamp = time(NULL);
+      local_tm=localtime(&t_shtamp);
+      l_tm=*local_tm;
+      snprintf(storefiled_extdate,255,"%s.%04d%02d%02d_%02d%02d%02d",storefile,l_tm.tm_year+1900,l_tm.tm_mon+1,l_tm.tm_mday,l_tm.tm_hour,l_tm.tm_min,l_tm.tm_sec);
+      rename(logfile,storefiled_extdate);
+      ATOM_cmd_logrotated.store(false);
+      deblog("logrotated end");
+      //sem_wait(&SEM_save);
+    }
+    if (ATOM_cmd_logrotategz.load()==true)
+    {
+      deblog("logrotatgz start");
+      rename(logfile,uncompressfile);
+      //set detach thread compress
+      pthread_attr_t threadAttr;
+      pthread_attr_init(&threadAttr);
+      pthread_attr_setdetachstate(&threadAttr, PTHREAD_CREATE_DETACHED);
+      pthread_create(&T_compress_file,&threadAttr,F_compress_file,NULL);
+
+      ATOM_cmd_logrotategz.store(false);
+      deblog("logrotatgz end");
+      //sem_wait(&SEM_save);
     }
     //===== adminfile cmd storefile ====
+    //====================wait=========================================
+    //deblog("sem wait:SEM_save");
+    sem_wait(&SEM_save);
+    //====================wait=========================================
     array_count_save=ATOM_save_count.load();
     //== start save ===
     ATOM_save_run.store(true);
@@ -1011,7 +1073,7 @@ void *F_save_file(void* varray_audit)
       	    fprintf(f_logfile,"%04d-%02d-%02d %02d:%02d:%02d.%i ",l_tm.tm_year+1900,l_tm.tm_mon+1,l_tm.tm_mday,l_tm.tm_hour,l_tm.tm_min,l_tm.tm_sec,f_array[i].t_mls);
       	    fprintf(f_logfile,"auditid=\"%d\" ",f_array[i].auditid);
 
-            if (DEBUG_LEVEL>2)
+            if (DEBUG_LEVEL>1)
             {
               if ((DEBUG==true) || (DEBUG_DISPLAY==true))
               {
@@ -1285,22 +1347,55 @@ void *F_relocate_audit(void* varray_audit)
     int end_i = ATOM_end_audit_relocate.load();
     ATOM_post_relocate.store(end_i-start_i);
     //count_relocate_auditid=ATOM_relocate_auditid.load();
+    if (DEBUG_LEVEL>0)
+      deblog("==== relocate f_array ====");
+    int delta_first_free=0;
     for (int i=start_i; i<end_i; i++)
     {
+      //el already use
+      if (f_array[i-start_i+delta_first_free].auditid!=0)
+      {
+        //search first free el
+        if ((i-start_i+delta_first_free)<SAVE_AUDIT)
+        {
+          for (int j=(i-start_i+delta_first_free);j<SAVE_AUDIT;j++)
+          {
+            if (f_array[j].auditid==0)
+            {
+              delta_first_free=j-(i-start_i);
+              //move end relocate
+              ATOM_end_audit_relocate.store(end_i+delta_first_free);
+
+              if (DEBUG_LEVEL>2)
+              {
+                if ((DEBUG==true) || (DEBUG_DISPLAY==true))
+                {
+                  snprintf(msg,255,"  relocate: f_array[%d] already use, step to %d",(i-start_i+delta_first_free),delta_first_free);
+                  deblog(msg);
+                }
+              }
+              break;
+            }
+          }
+        }
+        else
+        {
+          deblog("  relocate: error search free el in f_array");
+        }
+      }
+
       if (f_array[i].auditid!=0)
       {
-        if (DEBUG_LEVEL>2)
+        if (DEBUG_LEVEL>1)
         {
           if ((DEBUG==true) || (DEBUG_DISPLAY==true))
           {
-            //if (ATOM_save_run.load()==true)
-              //deblog("========= save is run ===========");
-            snprintf(msg,255,"  relocate f_array[%d].auditid(%d) ==> f_array[%d].auditid uid_user=%s",i,f_array[i].auditid,(i-start_i),f_array[i].uid_user);
+            snprintf(msg,255,"  relocate f_array[%d].auditid(%d) ==> f_array[%d].auditid",i,f_array[i].auditid,(i-start_i+delta_first_free));
             deblog(msg);
           }
         }
         //f_array[i-start_i].auditid=f_array[i].auditid;
-        memcpy((&f_array[i-start_i]),(&f_array[i]),sizeof(s_audit));
+        memcpy((&f_array[i-start_i+delta_first_free]),(&f_array[i]),sizeof(s_audit));
         memset((&f_array[i]),0,sizeof(s_audit));
         //f_array[i].auditid=0;
       }
@@ -1425,4 +1520,158 @@ void *F_stat(void*)
   }
   deblog((char *)"=== thread end stat ===");
   return NULL;
+}
+
+
+void *F_compress_file(void* vbuf)
+{
+  FILE       *fp_src;
+  FILE       *fp_dst;
+
+  char compressfile_extdate[256];
+  //====curent time====
+  struct tm *local_tm;
+  struct tm  l_tm;
+  time_t t_shtamp;
+  t_shtamp = time(NULL);
+  local_tm=localtime(&t_shtamp);
+  l_tm=*local_tm;
+  snprintf(compressfile_extdate,255,"%s.%04d%02d%02d_%02d%02d%02d.gzip",compressfile,l_tm.tm_year+1900,l_tm.tm_mon+1,l_tm.tm_mday,l_tm.tm_hour,l_tm.tm_min,l_tm.tm_sec);
+
+  //compress a file
+  //fp_src = fopen(uncompressfile,"r");
+  //fp_dst = fopen(compressfile_extdate,"w");
+  //int ret = f_zlib(fp_src,fp_dst,ZLEVEL);
+  int ret = f_zlib((char*)uncompressfile,(char*)compressfile_extdate,ZLEVEL);
+}
+
+int f_zlib(char *ufile, char *cfile, int level)
+{
+    int ret, flush;
+    unsigned have;
+    z_stream strm;
+    unsigned char in[CHUNK];
+    unsigned char out[CHUNK];
+
+    ATOM_compress_gz.store(true);
+    deblog("compress start");
+    FILE *source = fopen(ufile,"r");
+    FILE *dest = fopen(cfile,"w");
+
+    /* allocate deflate state */
+    strm.zalloc = Z_NULL;
+    strm.zfree = Z_NULL;
+    strm.opaque = Z_NULL;
+    //ret = deflateInit(&strm, level);
+    ret = deflateInit2(&strm, level, Z_DEFLATED, 15 + 16, 8, Z_DEFAULT_STRATEGY);
+    if (ret != Z_OK)
+    {
+      ATOM_compress_gz.store(false);
+      deblog("error compress (deflateInit2)");
+      //fclose(dest);
+      //fclose(source);
+      return ret;
+    }
+    /* compress until end of file */
+    do {
+        strm.avail_in = fread(in, 1, CHUNK, source);
+        if (ferror(source)) {
+            (void)deflateEnd(&strm);
+            ATOM_compress_gz.store(false);
+            deblog("error compress: read");
+            fclose(dest);
+            fclose(source);
+            return Z_ERRNO;
+        }
+        flush = feof(source) ? Z_FINISH : Z_NO_FLUSH;
+        strm.next_in = in;
+        /* run deflate() on input until output buffer not full, finish
+           compression if all of source has been read in */
+        do {
+            strm.avail_out = CHUNK;
+            strm.next_out = out;
+            ret = deflate(&strm, flush);    /* no bad return value */
+            assert(ret != Z_STREAM_ERROR);  /* state not clobbered */
+            have = CHUNK - strm.avail_out;
+            if (fwrite(out, 1, have, dest) != have || ferror(dest)) {
+                (void)deflateEnd(&strm);
+                ATOM_compress_gz.store(false);
+                deblog("error compress: write");
+                fclose(dest);
+                fclose(source);
+                return Z_ERRNO;
+            }
+        } while (strm.avail_out == 0);
+        assert(strm.avail_in == 0);     /* all input will be used */
+        /* done when last data in file processed */
+    } while (flush != Z_FINISH);
+    assert(ret == Z_STREAM_END);        /* stream will be complete */
+    /* clean up and return */
+    (void)deflateEnd(&strm);
+    deblog("compress finish");
+    fclose(dest);
+    fclose(source);
+    deblog("remove uncompresed file");
+    remove(ufile);
+    ATOM_compress_gz.store(false);
+    return Z_OK;
+}
+
+int f_zlib_decompress(char *cfile, char *ufile)
+{
+    int ret;
+    unsigned have;
+    z_stream strm;
+    unsigned char in[CHUNK];
+    unsigned char out[CHUNK];
+
+    FILE *source = fopen(cfile,"r");
+    FILE *dest = fopen(ufile,"w");
+
+    /* allocate inflate state */
+    strm.zalloc = Z_NULL;
+    strm.zfree = Z_NULL;
+    strm.opaque = Z_NULL;
+    strm.avail_in = 0;
+    strm.next_in = Z_NULL;
+    ret = inflateInit(&strm);
+    if (ret != Z_OK)
+        return ret;
+    /* decompress until deflate stream ends or end of file */
+    do {
+        strm.avail_in = fread(in, 1, CHUNK, source);
+        if (ferror(source)) {
+            (void)inflateEnd(&strm);
+            return Z_ERRNO;
+        }
+        if (strm.avail_in == 0)
+            break;
+        strm.next_in = in;
+        /* run inflate() on input until output buffer not full */
+        do {
+            strm.avail_out = CHUNK;
+            strm.next_out = out;
+            ret = inflate(&strm, Z_NO_FLUSH);
+            assert(ret != Z_STREAM_ERROR);  /* state not clobbered */
+            switch (ret) {
+            case Z_NEED_DICT:
+                ret = Z_DATA_ERROR;     /* and fall through */
+            case Z_DATA_ERROR:
+            case Z_MEM_ERROR:
+                (void)inflateEnd(&strm);
+                return ret;
+            }
+            have = CHUNK - strm.avail_out;
+            if (fwrite(out, 1, have, dest) != have || ferror(dest)) {
+                (void)inflateEnd(&strm);
+                return Z_ERRNO;
+            }
+        } while (strm.avail_out == 0);
+        /* done when inflate() says it's done */
+    } while (ret != Z_STREAM_END);
+    /* clean up and return */
+    (void)inflateEnd(&strm);
+    fclose(dest);
+    fclose(source);
+    return ret == Z_STREAM_END ? Z_OK : Z_DATA_ERROR;
 }
