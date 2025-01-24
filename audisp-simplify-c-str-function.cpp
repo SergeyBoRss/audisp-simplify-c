@@ -57,6 +57,8 @@ void deblog(char *inmsg)
           //fprintf(f_debug,"[%f]:%s\n",seconds,msg);
           fprintf(f_debug,"%s",msg);
           fclose(f_debug);
+          //memzerro
+          memset(msg,0,sizeof(char) * SIZE_MSG);
         }
         else
           printf("error open debug file %s\n",deblogfile);
@@ -215,6 +217,202 @@ void print_ALL_audit()
         //break;
     }
     printf("=================== audit ====================\n");
+  }
+}
+
+void print_cur_audit(s_audit cur_audit)
+{
+  char msg[256];
+  struct tm *local_tm;
+  struct tm  l_tm;
+  if (cur_audit.pid != pid && cur_audit.ppid != ppid)
+  {
+    // === date time ====
+    local_tm=localtime(&cur_audit.t_shtamp);
+    l_tm=*local_tm;
+    printf("%04d-%02d-%02d %02d:%02d:%02d.%i ",l_tm.tm_year+1900,l_tm.tm_mon+1,l_tm.tm_mday,l_tm.tm_hour,l_tm.tm_min,l_tm.tm_sec,cur_audit.t_mls);
+    printf("auditid=\"%d\" ",cur_audit.auditid);
+
+
+    printf("date=\"%04d-%02d-%02d\" ",l_tm.tm_year+1900,l_tm.tm_mon+1,l_tm.tm_mday);
+    printf("time=\"%02d:%02d:%02d.%i\" ",l_tm.tm_hour,l_tm.tm_min,l_tm.tm_sec,cur_audit.t_mls);
+
+
+    if (cur_audit.auid_isset==true)
+    {
+      printf("auid=\"%u\" ",cur_audit.auid);
+      printf("auid_user=\"%s\" ",cur_audit.auid_user);
+    }
+    //=====================================13
+    if (cur_audit.uid_isset==true)
+    {
+      printf("uid=\"%u\" ",cur_audit.uid);
+      printf("uid_user=\"%s\" ",cur_audit.uid_user);
+    }
+    if (cur_audit.euid_isset==true)
+    {
+      printf("euid=\"%u\" ",cur_audit.euid);
+      if (strlen(cur_audit.euid_user)==0)
+        uidtouser(cur_audit.euid_user,cur_audit.euid);
+      printf("euid_user=\"%s\" ",cur_audit.euid_user);
+    }
+    if (cur_audit.suid_isset==true)
+    {
+      printf("suid=\"%u\" ",cur_audit.suid);
+      if (strlen(cur_audit.suid_user)==0)
+        uidtouser(cur_audit.suid_user,cur_audit.suid);
+      printf("suid_user=\"%s\" ",cur_audit.suid_user);
+    }
+    if (cur_audit.fsuid_isset==true)
+    {
+      printf("fsuid=\"%u\" ",cur_audit.fsuid);
+      if (strlen(cur_audit.fsuid_user)==0)
+        uidtouser(cur_audit.fsuid_user,cur_audit.fsuid);
+      printf("fsuid_user=\"%s\" ",cur_audit.fsuid_user);
+    }
+    if (cur_audit.ouid_isset==true)
+    {
+      printf("ouid=\"%u\" ",cur_audit.ouid);
+      if (strlen(cur_audit.ouid_user)==0)
+        uidtouser(cur_audit.ouid_user,cur_audit.ouid);
+      printf("ouid_user=\"%s\" ",cur_audit.ouid_user);
+    }
+    if (cur_audit.agid_isset==true)
+    {
+      printf("agid=\"%u\" ",cur_audit.agid);
+      if (strlen(cur_audit.agid_group)==0)
+        gidtogroup(cur_audit.agid_group,cur_audit.agid);
+      printf("agid_group=\"%s\" ",cur_audit.agid_group);
+    }
+    if (cur_audit.agid_isset==true)
+    {
+      printf("gid=\"%u\" ",cur_audit.gid);
+      if (strlen(cur_audit.gid_group)==0)
+        gidtogroup(cur_audit.gid_group,cur_audit.gid);
+      printf("gid_group=\"%s\" ",cur_audit.gid_group);
+    }
+    if (cur_audit.egid_isset==true)
+    {
+      printf("egid=\"%u\" ",cur_audit.egid);
+      if (strlen(cur_audit.egid_group)==0)
+        gidtogroup(cur_audit.egid_group,cur_audit.egid);
+      printf("egid_group=\"%s\" ",cur_audit.egid_group);
+    }
+    if (cur_audit.sgid_isset==true)
+    {
+      printf("sgid=\"%u\" ",cur_audit.sgid);
+      if (strlen(cur_audit.sgid_group)==0)
+        gidtogroup(cur_audit.sgid_group,cur_audit.sgid);
+      printf("sgid_group=\"%s\" ",cur_audit.sgid_group);
+    }
+    if (cur_audit.fsgid_isset==true)
+    {
+      printf("fsgid=\"%u\" ",cur_audit.fsgid);
+      if (strlen(cur_audit.fsgid_group)==0)
+        gidtogroup(cur_audit.fsgid_group,cur_audit.fsgid);
+      printf("fsgid_group=\"%s\" ",cur_audit.fsgid_group);
+    }
+    if (cur_audit.ogid_isset==true)
+    {
+      printf("ogid=\"%u\" ",cur_audit.ogid);
+      if (strlen(cur_audit.ogid_group)==0)
+        gidtogroup(cur_audit.ogid_group,cur_audit.ogid);
+      printf("ogid_group=\"%s\" ",cur_audit.ogid_group);
+    }
+
+    if (strlen(cur_audit.addr)>0)
+      printf("addr=\"%s\" ",cur_audit.addr);
+    if (strlen(cur_audit.exe)>0)
+      printf("exe=\"%s\" ",cur_audit.exe);
+    if (strlen(cur_audit.hostname)>0)
+      printf("hostname=\"%s\" ",cur_audit.hostname);
+    if (strlen(cur_audit.key)>0)
+      printf("key=\"%s\" ",cur_audit.key);
+
+    if (strlen(cur_audit.newcontext)>0)
+      printf("newcontext=\"%s\" ",cur_audit.newcontext);
+    if (strlen(cur_audit.oldcontext)>0)
+      printf("oldcontext=\"%s\" ",cur_audit.oldcontext);
+    if (cur_audit.pid_isset==true)
+      printf("pid=\"%u\" ",cur_audit.pid);
+    if (cur_audit.ppid_isset==true)
+      printf("ppid=\"%u\" ",cur_audit.ppid);
+    if (strlen(cur_audit.res)>0)
+      printf("res=\"%s\" ",cur_audit.res);
+    if (strlen(cur_audit.seresult)>0)
+      printf("seresult=\"%s\" ",cur_audit.seresult);
+    if (cur_audit.ses_isset==true)
+      printf("ses=\"%u\" ",cur_audit.ses);
+    if (strlen(cur_audit.subj)>0)
+      printf("subj=\"%s\" ",cur_audit.subj);
+    if (strlen(cur_audit.terminal)>0)
+      printf("terminal=\"%s\" ",cur_audit.terminal);
+    if (strlen(cur_audit.tty)>0)
+      printf("tty=\"%s\" ",cur_audit.tty);
+    if (strlen(cur_audit.direction)>0)
+      printf("direction=\"%s\" ",cur_audit.direction);
+    if (strlen(cur_audit.cipher)>0)
+      printf("cipher=\"%s\" ",cur_audit.cipher);
+    if (strlen(cur_audit.ksize)>0)
+      printf("ksize=\"%s\" ",cur_audit.ksize);
+    if (strlen(cur_audit.mac)>0)
+      printf("mac=\"%s\" ",cur_audit.mac);
+    if (strlen(cur_audit.pfs)>0)
+      printf("pfs=\"%s\" ",cur_audit.pfs);
+    if (strlen(cur_audit.spid)>0)
+      printf("spid=\"%s\" ",cur_audit.spid);
+    if (strlen(cur_audit.laddr)>0)
+      printf("laddr=\"%s\" ",cur_audit.laddr);
+    if (strlen(cur_audit.lport)>0)
+      printf("lport=\"%s\" ",cur_audit.lport);
+
+    if (strlen(cur_audit.SYSCALL)>0)
+      printf("syscall=\"%s\" ",cur_audit.SYSCALL);
+    if (cur_audit.syscall>=0)
+      printf("syscall=\"%d\" ",cur_audit.syscall);
+
+    if (strlen(cur_audit.op)>0)
+      printf("op=\"%s\" ",cur_audit.op);
+    if (strlen(cur_audit.vm)>0)
+      printf("vm=\"%s\" ",cur_audit.vm);
+    if (strlen(cur_audit.cwd)>0)
+      printf("cwd=\"%s\" ",cur_audit.cwd);
+    /*if (strlen(cur_audit.cmd)>0)
+      printf("cmd=\"%s\" ",cur_audit.cmd);*/
+    if (strlen(cur_audit.proctitle)>0)
+      printf("proctitle=\"%s\" ",cur_audit.proctitle);
+
+    if (strlen(cur_audit.errcode)>0)
+      printf("errcode=\"%s\" ",cur_audit.errcode);
+    if (strlen(cur_audit.errdesc)>0)
+      printf("errdesc=\"%s\" ",cur_audit.errdesc);
+    //if (strlen(cur_audit.saddr)>0)
+      //printf("saddr=\"%s\" ",cur_audit.saddr);
+    if (strlen(cur_audit.res_saddr)>0)
+      printf("saddr=\"%s\" ",cur_audit.res_saddr);
+    if (strlen(cur_audit.avc)>0)
+      printf("avc=\"%s\" ",cur_audit.avc);
+    if (strlen(cur_audit.types)>0)
+      printf("types=\"%s\" ",cur_audit.types);
+    if (strlen(cur_audit.names)>0)
+      printf("names=\"%s\" ",cur_audit.names);
+    if (strlen(cur_audit.acct)>0)
+      printf("acct=\"%s\" ",cur_audit.acct);
+    if (strlen(cur_audit.unit)>0)
+      printf("unit=\"%s\" ",cur_audit.unit);
+    if (strlen(cur_audit.success)>0)
+      printf("success=\"%s\" ",cur_audit.success);
+
+    if (strlen(cur_audit.command)>0)
+      printf("command=\"%s\" ",cur_audit.command);
+
+    //syscall
+    if (strlen(cur_audit.args)>0)
+      printf("an=\"%s\" ",cur_audit.args);
+
+
+    //=====================================13
+    printf("\n");
   }
 }
 
@@ -519,7 +717,7 @@ int copy_val_istart(char *val, char *bufstr, int start_i, int end_i, char *filte
 
   int i_start=start_i+prev_delta_pos_find_val;
   int i_end=end_i;
-  //====== prev_delta_pos_find_val ======
+  //====== начинаем поиск с позиции prev_delta_pos_find_val ======
   int i;
   for (i = i_start; i < i_end; i++)
   {
@@ -562,7 +760,7 @@ int copy_val_istart(char *val, char *bufstr, int start_i, int end_i, char *filte
       {
         for (int k=indx+j; k<(indx+j+max_char); k++)
         {
-          //
+          //копирование результата в val
           if (k>=end_i)
           {
             val[0]='\0';
@@ -587,7 +785,7 @@ int copy_val_istart(char *val, char *bufstr, int start_i, int end_i, char *filte
           }
 
         }
-        //
+        //не нашли стоп символа
         val[0]='\0';
         //deblog("not find stop char");
         indx=-1;
@@ -598,12 +796,12 @@ int copy_val_istart(char *val, char *bufstr, int start_i, int end_i, char *filte
   val[0]='\0';
   indx=-1;
 
-  //=====  prev_delta_pos_find_val
+  //===== не найдено начина с позиции prev_delta_pos_find_val
   if (prev_delta_pos_find_val>0)
   {
     int i_start=start_i;
     int i_end=start_i+prev_delta_pos_find_val+strlen(filter);
-    //======  i_end======
+    //====== начинаем поиск с позиции start_i и заканчиваем  i_end======
     int i;
     for (i = i_start; i < i_end; i++)
     {
@@ -646,7 +844,7 @@ int copy_val_istart(char *val, char *bufstr, int start_i, int end_i, char *filte
         {
           for (int k=indx+j; k<(indx+j+max_char); k++)
           {
-            // val
+            //копирование результата в val
             if (k>=end_i)
             {
               val[0]='\0';
@@ -671,7 +869,7 @@ int copy_val_istart(char *val, char *bufstr, int start_i, int end_i, char *filte
             }
 
           }
-          //
+          //не нашли стоп символа
           val[0]='\0';
           indx=-1;
         }
@@ -809,7 +1007,7 @@ int strnadd(char *dst, char *src, int sz_src, int sz_dst)
 		return 0;
 }
 
-//
+//преобразование номера auditid в номер элемента массива
 int auditid_to_id(s_audit *f_array, int array_count, unsigned int test_auditid)
 {
   //deblog((char *)"auditid_to_id->");
@@ -836,7 +1034,7 @@ int auditid_to_id(s_audit *f_array, int array_count, unsigned int test_auditid)
         prev_id=ATOM_post_relocate.load();
     }
   }
-  //prev_id=0;//==============================
+  //prev_id=0;//=================удалить потом=============
 	if (f_array[prev_id].auditid==test_auditid)
   {
     ATOM_prev_id.store(prev_id);
@@ -1109,7 +1307,7 @@ int cur_audit_to_array(s_audit *f_array,int array_count,s_audit cur_audit,int n_
   char msg[256];
   int find_id_in_auditid=auditid_to_id(f_array,SIZE_AUDIT,cur_audit.auditid);
 
-  while ((find_id_in_auditid>=ATOM_start_audit_relocate.load()) && (find_id_in_auditid<ATOM_end_audit_relocate) && (ATOM_relocate_processed.load()==true))
+  while ((find_id_in_auditid>=ATOM_start_audit_relocate.load()) && (find_id_in_auditid<ATOM_end_audit_relocate.load()) && (ATOM_relocate_processed.load()==true))
   {
     //re find auditid
     if (DEBUG_LEVEL>1)
@@ -1127,243 +1325,254 @@ int cur_audit_to_array(s_audit *f_array,int array_count,s_audit cur_audit,int n_
     if (f_array[find_id_in_auditid].auditid!=0)
     {
       deblog("over max SIZE_AUDIT, print to stdout");
-      print_audit(f_array,find_id_in_auditid);
+      if (find_id_in_auditid==(SIZE_AUDIT-1))
+      {
+        print_audit(f_array,find_id_in_auditid);
+        f_array[find_id_in_auditid].auditid=0;
+      }
+      else
+      {
+        print_cur_audit(cur_audit);
+      }
     }
   }
 
-  f_array[find_id_in_auditid].auditid=cur_audit.auditid;
+  if (find_id_in_auditid<SIZE_AUDIT)
+  {
+    f_array[find_id_in_auditid].auditid=cur_audit.auditid;
 
-  if (cur_audit.pid_isset==true)
-  {
-    f_array[find_id_in_auditid].pid_isset=true;
-    f_array[find_id_in_auditid].pid=cur_audit.pid;
-  }
-
-  if (cur_audit.ppid_isset==true)
-  {
-    f_array[find_id_in_auditid].ppid_isset=true;
-    f_array[find_id_in_auditid].ppid=cur_audit.ppid;
-  }
-  if (cur_audit.t_shtamp!=0)
-  {
-    f_array[find_id_in_auditid].t_shtamp=cur_audit.t_shtamp;
-    f_array[find_id_in_auditid].t_mls=cur_audit.t_mls;
-  }
-  if (cur_audit.auid_isset==true)
-  {
-    f_array[find_id_in_auditid].auid_isset=cur_audit.auid_isset;
-    f_array[find_id_in_auditid].auid=cur_audit.auid;
-  }
-  if (cur_audit.uid_isset==true)
-  {
-    f_array[find_id_in_auditid].uid_isset=cur_audit.uid_isset;
-    f_array[find_id_in_auditid].uid=cur_audit.uid;
-  }
-  if (cur_audit.gid_isset==true)
-  {
-    f_array[find_id_in_auditid].gid_isset=cur_audit.gid_isset;
-    f_array[find_id_in_auditid].gid=cur_audit.gid;
-  }
-  if (cur_audit.euid_isset==true)
-  {
-    f_array[find_id_in_auditid].euid_isset=cur_audit.euid_isset;
-    f_array[find_id_in_auditid].euid=cur_audit.euid;
-  }
-  if (cur_audit.suid_isset==true)
-  {
-    f_array[find_id_in_auditid].suid_isset=cur_audit.suid_isset;
-    f_array[find_id_in_auditid].suid=cur_audit.suid;
-  }
-  if (cur_audit.fsuid_isset==true)
-  {
-    f_array[find_id_in_auditid].fsuid_isset=cur_audit.fsuid_isset;
-    f_array[find_id_in_auditid].fsuid=cur_audit.fsuid;
-  }
-  if (cur_audit.ouid_isset==true)
-  {
-    f_array[find_id_in_auditid].ouid_isset=cur_audit.ouid_isset;
-    f_array[find_id_in_auditid].ouid=cur_audit.ouid;
-  }
-  if (cur_audit.ogid_isset==true)
-  {
-    f_array[find_id_in_auditid].ogid_isset=cur_audit.ogid_isset;
-    f_array[find_id_in_auditid].ogid=cur_audit.ogid;
-  }
-  if (cur_audit.agid_isset==true)
-  {
-    f_array[find_id_in_auditid].agid_isset=cur_audit.agid_isset;
-    f_array[find_id_in_auditid].agid=cur_audit.agid;
-  }
-  if (cur_audit.egid_isset==true)
-  {
-    f_array[find_id_in_auditid].egid_isset=cur_audit.egid_isset;
-    f_array[find_id_in_auditid].egid=cur_audit.egid;
-  }
-  if (cur_audit.sgid_isset==true)
-  {
-    f_array[find_id_in_auditid].sgid_isset=cur_audit.sgid_isset;
-    f_array[find_id_in_auditid].sgid=cur_audit.sgid;
-  }
-  if (cur_audit.fsgid_isset==true)
-  {
-    f_array[find_id_in_auditid].fsgid_isset=cur_audit.fsgid_isset;
-    f_array[find_id_in_auditid].fsgid=cur_audit.fsgid;
-  }
-  if (cur_audit.addr[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].addr,cur_audit.addr,255);
-  if (cur_audit.exe[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].exe,cur_audit.exe,4096);
-  if (cur_audit.hostname[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].hostname,cur_audit.hostname,255);
-  if (cur_audit.key[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].key,cur_audit.key,255);
-  if (cur_audit.newcontext[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].newcontext,cur_audit.newcontext,255);
-  if (cur_audit.oldcontext[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].oldcontext,cur_audit.oldcontext,255);
-  if (cur_audit.res[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].res,cur_audit.res,11);
-  if (cur_audit.seresult[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].seresult,cur_audit.seresult,255);
-
-  if (cur_audit.ses_isset==true)
-  {
-    f_array[find_id_in_auditid].ses_isset=cur_audit.ses_isset;
-    f_array[find_id_in_auditid].ses=cur_audit.ses;
-  }
-  if (cur_audit.subj[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].subj,cur_audit.subj,255);
-  if (cur_audit.terminal[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].terminal,cur_audit.terminal,255);
-  if (cur_audit.tty[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].tty,cur_audit.tty,255);
-  if (cur_audit.direction[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].direction,cur_audit.direction,255);
-  if (cur_audit.cipher[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].cipher,cur_audit.cipher,255);
-  if (cur_audit.ksize[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].ksize,cur_audit.ksize,255);
-  if (cur_audit.mac[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].mac,cur_audit.mac,255);
-  if (cur_audit.pfs[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].pfs,cur_audit.pfs,255);
-  if (cur_audit.spid[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].spid,cur_audit.spid,255);
-  if (cur_audit.laddr[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].laddr,cur_audit.laddr,255);
-  if (cur_audit.lport[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].lport,cur_audit.lport,255);
-  if (cur_audit.SYSCALL[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].SYSCALL,cur_audit.SYSCALL,25);
-
-  if (cur_audit.syscall_isset==true)
-  {
-    f_array[find_id_in_auditid].syscall_isset=cur_audit.syscall_isset;
-    f_array[find_id_in_auditid].syscall=cur_audit.syscall;
-  }
-  if (cur_audit.op[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].op,cur_audit.op,255);
-  if (cur_audit.vm[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].vm,cur_audit.vm,255);
-  if (cur_audit.cwd[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].cwd,cur_audit.cwd,4096);
-
-  if ( cur_audit.command_isset==true )
-  {
-    f_array[find_id_in_auditid].command_isset=true;
-    if (f_array[find_id_in_auditid].command[0]!='\0')
+    if (cur_audit.pid_isset==true)
     {
-      strnaddchar(f_array[find_id_in_auditid].command,';',10240);
+      f_array[find_id_in_auditid].pid_isset=true;
+      f_array[find_id_in_auditid].pid=cur_audit.pid;
     }
-    strnadd(f_array[find_id_in_auditid].command,cur_audit.command,10240,10240);
-  }
-  if (cur_audit.proctitle[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].proctitle,cur_audit.proctitle,10240);
-  if (cur_audit.errcode[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].errcode,cur_audit.errcode,254);
-  if (cur_audit.errdesc[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].errdesc,cur_audit.errdesc,254);
-  if (cur_audit.res_saddr[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].res_saddr,cur_audit.res_saddr,2048);
-  if (cur_audit.saddr[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].saddr,cur_audit.saddr,63);
-  if (f_array[find_id_in_auditid].family==0)
-    f_array[find_id_in_auditid].family=cur_audit.family;
-  if (cur_audit.ip[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].ip,cur_audit.ip,15);
-  if (cur_audit.ipv6[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].ipv6,cur_audit.ipv6,39);
-  f_array[find_id_in_auditid].port=cur_audit.port;
-  if (cur_audit.avc[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].avc,cur_audit.avc,63);
-  if (cur_audit.type_isset==true)
-  {
-    f_array[find_id_in_auditid].type_isset=cur_audit.type_isset;
-    strncpy(f_array[find_id_in_auditid].types,cur_audit.types,4095);
-  }
-  if ( cur_audit.name_isset==true )
-  {
-    f_array[find_id_in_auditid].name_isset=true;
-    if (cur_audit.names[0]!='\0')
+
+    if (cur_audit.ppid_isset==true)
     {
-      //snprintf(msg,255,"==== cur_audit.names=%s",cur_audit.names);
-      //deblog(msg);
-      strnaddchar(f_array[find_id_in_auditid].names,',',10240);
+      f_array[find_id_in_auditid].ppid_isset=true;
+      f_array[find_id_in_auditid].ppid=cur_audit.ppid;
     }
-    strnadd(f_array[find_id_in_auditid].names,cur_audit.names,10240,10240);
-  }
-  if (cur_audit.acct[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].acct,cur_audit.acct,255);
-  if (cur_audit.unit[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].unit,cur_audit.unit,255);
-  if (cur_audit.success[0]!='\0')
-    strncpy(f_array[find_id_in_auditid].success,cur_audit.success,255);
+    if (cur_audit.t_shtamp!=0)
+    {
+      f_array[find_id_in_auditid].t_shtamp=cur_audit.t_shtamp;
+      f_array[find_id_in_auditid].t_mls=cur_audit.t_mls;
+    }
+    if (cur_audit.auid_isset==true)
+    {
+      f_array[find_id_in_auditid].auid_isset=cur_audit.auid_isset;
+      f_array[find_id_in_auditid].auid=cur_audit.auid;
+    }
+    if (cur_audit.uid_isset==true)
+    {
+      f_array[find_id_in_auditid].uid_isset=cur_audit.uid_isset;
+      f_array[find_id_in_auditid].uid=cur_audit.uid;
+    }
+    if (cur_audit.gid_isset==true)
+    {
+      f_array[find_id_in_auditid].gid_isset=cur_audit.gid_isset;
+      f_array[find_id_in_auditid].gid=cur_audit.gid;
+    }
+    if (cur_audit.euid_isset==true)
+    {
+      f_array[find_id_in_auditid].euid_isset=cur_audit.euid_isset;
+      f_array[find_id_in_auditid].euid=cur_audit.euid;
+    }
+    if (cur_audit.suid_isset==true)
+    {
+      f_array[find_id_in_auditid].suid_isset=cur_audit.suid_isset;
+      f_array[find_id_in_auditid].suid=cur_audit.suid;
+    }
+    if (cur_audit.fsuid_isset==true)
+    {
+      f_array[find_id_in_auditid].fsuid_isset=cur_audit.fsuid_isset;
+      f_array[find_id_in_auditid].fsuid=cur_audit.fsuid;
+    }
+    if (cur_audit.ouid_isset==true)
+    {
+      f_array[find_id_in_auditid].ouid_isset=cur_audit.ouid_isset;
+      f_array[find_id_in_auditid].ouid=cur_audit.ouid;
+    }
+    if (cur_audit.ogid_isset==true)
+    {
+      f_array[find_id_in_auditid].ogid_isset=cur_audit.ogid_isset;
+      f_array[find_id_in_auditid].ogid=cur_audit.ogid;
+    }
+    if (cur_audit.agid_isset==true)
+    {
+      f_array[find_id_in_auditid].agid_isset=cur_audit.agid_isset;
+      f_array[find_id_in_auditid].agid=cur_audit.agid;
+    }
+    if (cur_audit.egid_isset==true)
+    {
+      f_array[find_id_in_auditid].egid_isset=cur_audit.egid_isset;
+      f_array[find_id_in_auditid].egid=cur_audit.egid;
+    }
+    if (cur_audit.sgid_isset==true)
+    {
+      f_array[find_id_in_auditid].sgid_isset=cur_audit.sgid_isset;
+      f_array[find_id_in_auditid].sgid=cur_audit.sgid;
+    }
+    if (cur_audit.fsgid_isset==true)
+    {
+      f_array[find_id_in_auditid].fsgid_isset=cur_audit.fsgid_isset;
+      f_array[find_id_in_auditid].fsgid=cur_audit.fsgid;
+    }
+    if (cur_audit.addr[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].addr,cur_audit.addr,255);
+    if (cur_audit.exe[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].exe,cur_audit.exe,4096);
+    if (cur_audit.hostname[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].hostname,cur_audit.hostname,255);
+    if (cur_audit.key[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].key,cur_audit.key,255);
+    if (cur_audit.newcontext[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].newcontext,cur_audit.newcontext,255);
+    if (cur_audit.oldcontext[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].oldcontext,cur_audit.oldcontext,255);
+    if (cur_audit.res[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].res,cur_audit.res,11);
+    if (cur_audit.seresult[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].seresult,cur_audit.seresult,255);
 
-  //strnadd(f_array[find_id_in_auditid].command,cur_audit.command,10240,10240);
-  strnadd(f_array[find_id_in_auditid].args,cur_audit.args,10240,10240);
+    if (cur_audit.ses_isset==true)
+    {
+      f_array[find_id_in_auditid].ses_isset=cur_audit.ses_isset;
+      f_array[find_id_in_auditid].ses=cur_audit.ses;
+    }
+    if (cur_audit.subj[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].subj,cur_audit.subj,255);
+    if (cur_audit.terminal[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].terminal,cur_audit.terminal,255);
+    if (cur_audit.tty[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].tty,cur_audit.tty,255);
+    if (cur_audit.direction[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].direction,cur_audit.direction,255);
+    if (cur_audit.cipher[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].cipher,cur_audit.cipher,255);
+    if (cur_audit.ksize[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].ksize,cur_audit.ksize,255);
+    if (cur_audit.mac[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].mac,cur_audit.mac,255);
+    if (cur_audit.pfs[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].pfs,cur_audit.pfs,255);
+    if (cur_audit.spid[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].spid,cur_audit.spid,255);
+    if (cur_audit.laddr[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].laddr,cur_audit.laddr,255);
+    if (cur_audit.lport[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].lport,cur_audit.lport,255);
+    if (cur_audit.SYSCALL[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].SYSCALL,cur_audit.SYSCALL,25);
 
-  if (cur_audit.auid_isset==true)
-    strncpy(f_array[find_id_in_auditid].auid_user,cur_audit.auid_user,255);
-  if (cur_audit.uid_isset==true)
-  {
-    strncpy(f_array[find_id_in_auditid].uid_user,cur_audit.uid_user,255);
-    /*if (DEBUG_LEVEL==3)
+    if (cur_audit.syscall_isset==true)
+    {
+      f_array[find_id_in_auditid].syscall_isset=cur_audit.syscall_isset;
+      f_array[find_id_in_auditid].syscall=cur_audit.syscall;
+    }
+    if (cur_audit.op[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].op,cur_audit.op,255);
+    if (cur_audit.vm[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].vm,cur_audit.vm,255);
+    if (cur_audit.cwd[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].cwd,cur_audit.cwd,4096);
+
+    if ( cur_audit.command_isset==true )
+    {
+      f_array[find_id_in_auditid].command_isset=true;
+      if (f_array[find_id_in_auditid].command[0]!='\0')
+      {
+        strnaddchar(f_array[find_id_in_auditid].command,';',10240);
+      }
+      strnadd(f_array[find_id_in_auditid].command,cur_audit.command,10240,10240);
+    }
+    if (cur_audit.proctitle[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].proctitle,cur_audit.proctitle,10240);
+    if (cur_audit.errcode[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].errcode,cur_audit.errcode,254);
+    if (cur_audit.errdesc[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].errdesc,cur_audit.errdesc,254);
+    if (cur_audit.res_saddr[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].res_saddr,cur_audit.res_saddr,2048);
+    if (cur_audit.saddr[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].saddr,cur_audit.saddr,63);
+    if (f_array[find_id_in_auditid].family==0)
+      f_array[find_id_in_auditid].family=cur_audit.family;
+    if (cur_audit.ip[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].ip,cur_audit.ip,15);
+    if (cur_audit.ipv6[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].ipv6,cur_audit.ipv6,39);
+    f_array[find_id_in_auditid].port=cur_audit.port;
+    if (cur_audit.avc[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].avc,cur_audit.avc,63);
+    if (cur_audit.type_isset==true)
+    {
+      f_array[find_id_in_auditid].type_isset=cur_audit.type_isset;
+      strncpy(f_array[find_id_in_auditid].types,cur_audit.types,4095);
+    }
+    if ( cur_audit.name_isset==true )
+    {
+      f_array[find_id_in_auditid].name_isset=true;
+      if (cur_audit.names[0]!='\0')
+      {
+        //snprintf(msg,255,"==== cur_audit.names=%s",cur_audit.names);
+        //deblog(msg);
+        strnaddchar(f_array[find_id_in_auditid].names,',',10240);
+      }
+      strnadd(f_array[find_id_in_auditid].names,cur_audit.names,10240,10240);
+    }
+    if (cur_audit.acct[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].acct,cur_audit.acct,255);
+    if (cur_audit.unit[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].unit,cur_audit.unit,255);
+    if (cur_audit.success[0]!='\0')
+      strncpy(f_array[find_id_in_auditid].success,cur_audit.success,255);
+
+    //strnadd(f_array[find_id_in_auditid].command,cur_audit.command,10240,10240);
+    strnadd(f_array[find_id_in_auditid].args,cur_audit.args,10240,10240);
+
+    if (cur_audit.auid_isset==true)
+      strncpy(f_array[find_id_in_auditid].auid_user,cur_audit.auid_user,255);
+    if (cur_audit.uid_isset==true)
+    {
+      strncpy(f_array[find_id_in_auditid].uid_user,cur_audit.uid_user,255);
+      /*if (DEBUG_LEVEL==3)
+      {
+        if ((DEBUG==true) || (DEBUG_DISPLAY==true))
+        {
+          snprintf(msg,255,"  add audit array [%d] auditid(%d)  uid_user=%s",find_id_in_auditid,cur_audit.auditid,cur_audit.uid_user);
+          deblog(msg);
+        }
+      }*/
+    }
+    if (cur_audit.gid_isset==true)
+      strncpy(f_array[find_id_in_auditid].gid_group,cur_audit.gid_group,255);
+    if (cur_audit.euid_isset==true)
+      strncpy(f_array[find_id_in_auditid].euid_user,cur_audit.euid_user,255);
+    if (cur_audit.suid_isset==true)
+      strncpy(f_array[find_id_in_auditid].suid_user,cur_audit.suid_user,255);
+    if (cur_audit.fsuid_isset==true)
+      strncpy(f_array[find_id_in_auditid].fsuid_user,cur_audit.fsuid_user,255);
+    if (cur_audit.ouid_isset==true)
+      strncpy(f_array[find_id_in_auditid].ouid_user,cur_audit.ouid_user,255);
+    if (cur_audit.agid_isset==true)
+      strncpy(f_array[find_id_in_auditid].agid_group,cur_audit.agid_group,255);
+    if (cur_audit.egid_isset==true)
+      strncpy(f_array[find_id_in_auditid].egid_group,cur_audit.egid_group,255);
+    if (cur_audit.sgid_isset==true)
+      strncpy(f_array[find_id_in_auditid].sgid_group,cur_audit.sgid_group,255);
+    if (cur_audit.fsgid_isset==true)
+      strncpy(f_array[find_id_in_auditid].fsgid_group,cur_audit.fsgid_group,255);
+    if (cur_audit.ogid_isset==true)
+      strncpy(f_array[find_id_in_auditid].ogid_group,cur_audit.ogid_group,255);
+
+
+    if (DEBUG_LEVEL>1)
     {
       if ((DEBUG==true) || (DEBUG_DISPLAY==true))
       {
-        snprintf(msg,255,"  add audit array [%d] auditid(%d)  uid_user=%s",find_id_in_auditid,cur_audit.auditid,cur_audit.uid_user);
+        snprintf(msg,255,"[%d]>> cur_audit_to_array: add %d to array[%d]",n_thread,cur_audit.auditid,find_id_in_auditid);
         deblog(msg);
       }
-    }*/
-  }
-  if (cur_audit.gid_isset==true)
-    strncpy(f_array[find_id_in_auditid].gid_group,cur_audit.gid_group,255);
-  if (cur_audit.euid_isset==true)
-    strncpy(f_array[find_id_in_auditid].euid_user,cur_audit.euid_user,255);
-  if (cur_audit.suid_isset==true)
-    strncpy(f_array[find_id_in_auditid].suid_user,cur_audit.suid_user,255);
-  if (cur_audit.fsuid_isset==true)
-    strncpy(f_array[find_id_in_auditid].fsuid_user,cur_audit.fsuid_user,255);
-  if (cur_audit.ouid_isset==true)
-    strncpy(f_array[find_id_in_auditid].ouid_user,cur_audit.ouid_user,255);
-  if (cur_audit.agid_isset==true)
-    strncpy(f_array[find_id_in_auditid].agid_group,cur_audit.agid_group,255);
-  if (cur_audit.egid_isset==true)
-    strncpy(f_array[find_id_in_auditid].egid_group,cur_audit.egid_group,255);
-  if (cur_audit.sgid_isset==true)
-    strncpy(f_array[find_id_in_auditid].sgid_group,cur_audit.sgid_group,255);
-  if (cur_audit.fsgid_isset==true)
-    strncpy(f_array[find_id_in_auditid].fsgid_group,cur_audit.fsgid_group,255);
-  if (cur_audit.ogid_isset==true)
-    strncpy(f_array[find_id_in_auditid].ogid_group,cur_audit.ogid_group,255);
-
-
-  if (DEBUG_LEVEL>1)
-  {
-    if ((DEBUG==true) || (DEBUG_DISPLAY==true))
-    {
-      snprintf(msg,255,"[%d]>> cur_audit_to_array: add %d to array[%d] uid_user=%s",n_thread,cur_audit.auditid,find_id_in_auditid,cur_audit.uid_user);
-      deblog(msg);
     }
   }
   //ATOM_add_to_array_id[n_thread].store(-1);
@@ -1444,21 +1653,27 @@ int F_parsing_string_to_auditid(char *buf, int start_i, int end_i, s_audit *f_ar
   char name_ai[10];
 
   s_audit cur_audit;
+
+  //clock_t function_time_start = clock();
   //snprintf(msg,255,"F_parsing_string_to_auditid[%d] s=%d e=%d >",n_thread,start_i,end_i);
   //deblog(msg);
 
-  if (DEBUG_DISPLAY==true)
+  if ((DEBUG_DISPLAY==true) && (DEBUG_LEVEL>0))
   {
     printf("F_parsing_string_to_auditid[%d] s=%d e=%d >",n_thread,start_i,end_i);
-    printf(" |line not read:%d| ",ATOM_line_read.load());
+    if (DEBUG_LEVEL>1)
+      printf(" |line not read:%d| ",ATOM_line_read.load());
     int number_line_in_queue;
     sem_getvalue(&SEM_run_parsing_line,&number_line_in_queue);
-    printf(" |sem for read:%d|\n",number_line_in_queue);
+    if (DEBUG_LEVEL>2)
+      printf(" |sem for read:%d|",number_line_in_queue);
+    printf("\n");
   }
   memset(&cur_audit,0,sizeof(s_audit));
 
   //=========================
-  debbuf(i_line_start,i_line_end,buf); //<=========== BUG ========= TESTING =====
+  if (DEBUG_LEVEL>1)
+    debbuf(i_line_start,i_line_end,buf); //<=========== BUG ========= TESTING =====
   strncpy(pos_filter,"msg=audit(",16);
   if (ATOM_prev_delta_strpos_istart.load()>=4)
     ATOM_prev_delta_strpos_istart.store(ATOM_prev_delta_strpos_istart.load()-4);
@@ -1486,7 +1701,7 @@ int F_parsing_string_to_auditid(char *buf, int start_i, int end_i, s_audit *f_ar
     //snprintf(msg,255,"[thread:%d]function F_parsing_string_to_auditid:find auditid=%s",n_thread,str_auditid);
     //deblog(msg);
     cur_audit.auditid=atoi(str_auditid);
-    //========================== ============================================================
+    //========================== парсинг строки ============================================================
     //=======clear====
 
     str_tmp[0]='\0';
@@ -2129,14 +2344,20 @@ int F_parsing_string_to_auditid(char *buf, int start_i, int end_i, s_audit *f_ar
       //=================arg=====================
     //======================================================13
     }
-    //==========================  ============================================================
+    //========================== парсинг строки ============================================================
     cur_audit_to_array(array_audit,SIZE_AUDIT,cur_audit,n_thread);
 
   }
 
-  //
+  //очистка распарсенной строки
   clear_buf(start_i,end_i,buf);
   /*if (DEBUG_DISPLAY==true)
     printf("F_parsing_string_to_auditid[%d] s=%d e=%d <\n",n_thread,start_i,end_i);*/
+  //clock_t function_time_end = clock();
+  //if (DEBUG_LEVEL>3)
+  //{
+    //snprintf(msg,255,"time F_parsing_string_to_auditid = %lf", (long double) (function_time_end-function_time_start) / CLOCKS_PER_SEC);
+    //deblog(msg);
+  //}
   return 0;
 }
