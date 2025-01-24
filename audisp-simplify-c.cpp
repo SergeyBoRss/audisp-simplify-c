@@ -19,6 +19,8 @@ int  DEBUG_LEVEL=0;
 const char *ignorefile="/etc/audit/simplify.ignores";
 const char *logfile="/var/log/audisp-simplify-c";
 const char *storefile="/var/log/audisp-simplify-c.store";
+const char *compressfile="/var/log/audisp-simplify-c";
+const char *uncompressfile="/var/log/audisp-simplify-c.uncompress";
 const char *deblogfile="/var/log/audisp-simplify-c.log";
 const char *statfile="/var/log/audisp-simplify-c.stat";
 const char *adminfile="/var/lib/audisp-simplify-c";
@@ -127,7 +129,7 @@ int main(int argc,char *argv[])
 
   if ((DEBUG_DISPLAY==true) && (DEBUG_LEVEL>2))
     printf("start free\n");
-  free(read_buf);
+  //free(read_buf);
   if ((DEBUG_DISPLAY==true) && (DEBUG_LEVEL>2))
     printf("free read_buf\n");
   free(array_pass);
