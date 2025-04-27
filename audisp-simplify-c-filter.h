@@ -1,6 +1,8 @@
 #ifndef __AUDISP_SIMPLIFY_C_FILTER_H__
 #define __AUDISP_SIMPLIFY_C_FILTER_H__
 
+extern atomic_int ATOM_filtering;
+extern atomic_int ATOM_count_ignore_key;
 
 #define HASH_auid 13613018040941040726
 #define HASH_auid_user 13656647726036782632
@@ -53,8 +55,8 @@
 extern int size_audit_reserved_key;
 extern const char *audit_reserved_key;
 extern size_t *array_hash_uniq_ignore_key;
-extern atomic_int ATOM_filtering;
-extern atomic_int ATOM_count_ignore_key;
+
+
 extern size_t *available_hash_ignore_key;
 
 void printignore();
