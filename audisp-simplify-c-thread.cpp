@@ -4,6 +4,7 @@
 
 FILE *f_ignorefile;
 FILE *f_logfile;
+FILE *f_err;
 FILE *f_debug;
 FILE *f_stat;
 FILE *f_admin;
@@ -26,12 +27,15 @@ atomic_int  ATOM_line_read=0;
 atomic_int  ATOM_start_seq_mem_relocate=0;
 atomic_int  ATOM_end_seq_mem_relocate=0;
 atomic_bool ATOM_THREAD_parsing_line_run[COUNT_PARALLEL_PARSING];
+atomic_bool ATOM_THREAD_parsing_line_processing[COUNT_PARALLEL_PARSING];
 atomic_int  ATOM_THREAD_start_seq_mem[COUNT_PARALLEL_PARSING];
 atomic_int  ATOM_THREAD_end_seq_mem[COUNT_PARALLEL_PARSING];
 atomic_int  ATOM_last_end_seq_mem=0;
 atomic_bool ATOM_THREAD_relocate_buf_to_start_run=false;
 atomic_bool ATOM_relocate_run=false;
 atomic_bool ATOM_relocate_processed=false;
+atomic_int  ATOM_relocate_RED_ZONE_start_section=0;
+atomic_int  ATOM_relocate_RED_ZONE_end_section=0;
 atomic_bool ATOM_THREAD_parsing_buf_run=false;
 atomic_int  ATOM_run_parsing_line=0;
 atomic_int  ATOM_parsing_line_processed=0;
@@ -44,19 +48,26 @@ atomic_int  ATOM_add_to_array_auditid[COUNT_PARALLEL_PARSING];
 atomic_int  ATOM_start_audit_relocate=0;
 atomic_int  ATOM_end_audit_relocate=0;
 atomic_int  ATOM_post_relocate=0;
-atomic_bool ATOM_need_save=false;
+//atomic_bool ATOM_need_save=false;
 atomic_bool ATOM_THREAD_save_run=false;
 atomic_bool ATOM_save_run=false;
 atomic_int  ATOM_save_count=0;
 atomic_int  ATOM_save_line=0;
+atomic_int  ATOM_save_step=0;
 atomic_bool ATOM_relocate_auditid_run=false;
 atomic_int  ATOM_filtering_pid=0;
 
 atomic_bool ATOM_STAT=true;
 atomic_int  ATOM_STAT_read_byte=0;
+atomic_int  ATOM_STAT_read_block=0;
+atomic_int  ATOM_STAT_memory_read_block_size=0;
+atomic_int  ATOM_STAT_current_read_block_size=0;
+atomic_int  ATOM_STAT_read_byte_in_block=0;
 atomic_int  ATOM_STAT_filtering=0;
 atomic_int  ATOM_STAT_line_auditd=0;
-
+atomic_int  ATOM_STAT_raw_auditd_error=0;
+atomic_int  ATOM_STAT_auditd_error=0;
+atomic_int  ATOM_STAT_leak=0;
 
 atomic_bool ATOM_cmd_stop=false;
 atomic_bool ATOM_cmd_logrotate=false;
@@ -66,6 +77,8 @@ atomic_bool ATOM_compress_gz=false;
 atomic_bool ATOM_cmd_pause=false;
 
 int       size_buf=SIZE_BUF;
+bool      resize_size_b_char=true;
+bool      reduce_size_b_char=true;
 
 char       *read_buf;
 s_audit    *array_audit;
@@ -79,6 +92,7 @@ mutex MTX_parsing_line_read_seq;
 //mutex MTX_skipped_queue;
 //mutex MTX_relocate;
 mutex MTX_STAT_UID;
+mutex MTX_debug;
 
 sem_t SEM_relocate_buf;
 sem_t SEM_relocate_audit;
@@ -90,10 +104,13 @@ sem_t SEM_save;
 void admin_file(const char *adminfile)
 {
   char str_cmd[25];
+  str_cmd[0]='\0';
+  str_cmd[24]='\0';
   //========== admin file ===========
   if ((f_admin=fopen(adminfile,"r"))!=NULL)
   {
-    fgets(str_cmd,25,f_admin);
+    fgets(str_cmd,24,f_admin);
+    str_cmd[24]='\0';
     fclose(f_admin);
   }
   else
@@ -124,60 +141,16 @@ void admin_file(const char *adminfile)
       if ((DEBUG==true) || (DEBUG_DISPLAY==true))
         snprintf(msg,255,"cmd[%s]\n",str_cmd);
       deblog(msg);
-      if (strncmp(str_cmd,"pause on",24)==0)
-      {
-        ATOM_cmd_pause.store(true);
-      }
-      if (strncmp(str_cmd,"pause off",24)==0)
-      {
-        ATOM_cmd_pause.store(false);
-      }
+
       if (strncmp(str_cmd,"stop",24)==0)
       {
         ATOM_cmd_stop.store(true);
       }
-      if (strncmp(str_cmd,"logrotate",24)==0)
-      {
-        ATOM_cmd_logrotate.store(true);
-      }
-      if (strncmp(str_cmd,"logrotated",24)==0)
-      {
-        ATOM_cmd_logrotated.store(true);
-      }
-      if (strncmp(str_cmd,"compress",24)==0)
-      {
-        ATOM_cmd_logrotategz.store(true);
-      }
-      if (strncmp(str_cmd,"debug to file",24)==0)
-      {
-        DEBUG=true;
-      }
-      if (strncmp(str_cmd,"debug to display",24)==0)
-      {
-        DEBUG_DISPLAY=true;
-      }
-      if (strncmp(str_cmd,"debug off",24)==0)
-      {
-        deblog((char *)"debug off");
-        save_deblog();
-        DEBUG=false;
-        DEBUG_DISPLAY=false;
-      }
-      if (strncmp(str_cmd,"print buffer",24)==0)
-      {
-        printbuf(read_buf);//======TESTING======
-      }
-      if (strncmp(str_cmd,"print audit array",24)==0)
-      {
-        print_ALL_audit();
-      }
-      if (strncmp(str_cmd,"print stat",24)==0)
-      {
-        print_stat();
-      }
       if (strncmp(str_cmd,"help",24)==0)
       {
         printf("use cmd: echo 'cmd' > %s\n",adminfile);
+        printf("    filter on        : filtering audit array use file %s\n",ignorefile);
+        printf("    filter off       : filtering off\n");
         printf("    pause on         : read STDIO but not store to buffer and not parsing\n");
         printf("    pause off        : read STDIO, store to buffer and parsing\n");
         printf("    stop             : set signal to stop all thread, and close programm\n");
@@ -198,7 +171,6 @@ void admin_file(const char *adminfile)
     //======== execute cmd from admin file ===========
   }
 }
-
 
 void *F_coordinator(void* vbuf)
 {
@@ -226,21 +198,19 @@ void *F_coordinator(void* vbuf)
     if (ATOM_THREAD_read_STDIN_run.load()==false)
     {
       deblog((char *)"thread read STDIN stoped");
+
+      //====== stop THREAD_relocate_buf ==========
       if (ATOM_THREAD_relocate_buf_to_start_run.load()==true)
       {
         deblog((char *)"thread relocate_buf_to_start not stop");
         sem_post(&SEM_relocate_buf);
         //sleep(1);
-        if (pthread_kill(T_relocate_buf_to_start,0)!=ESRCH)
-        {
-          deblog((char *)"=== kill thread relocate_buf_to_start ===");
-          pthread_cancel(T_relocate_buf_to_start);
-          //pthread_join(T_relocate_buf_to_start,0x00);
-          ATOM_THREAD_relocate_buf_to_start_run.store(false);
-          deblog((char *)"=== end kill thread relocate_buf_to_start ===");
-        }
+
         T_relocate_buf_to_start=0;
       }
+      //====== stop THREAD_relocate_buf ==========
+
+      //======  stop THREAD_parsing_buf ==========
       if (ATOM_THREAD_parsing_buf_run.load()==true)
       {
         deblog((char *)"thread parsing_buf not stop");
@@ -248,8 +218,19 @@ void *F_coordinator(void* vbuf)
         ATOM_THREAD_save_run.store(false);
         if (pthread_kill(T_parsing_buf,0)!=ESRCH)
         {
-          deblog((char *)"=== kill thread parsing_buf ===");
+          for (int i=0; i<COUNT_PARALLEL_PARSING; i++)
+          {
+              if ( ATOM_THREAD_parsing_line_run[i].load() == true )
+              {
+                if ((DEBUG==true) || (DEBUG_DISPLAY==true))
+                  snprintf(msg,255,"run parsing_line [%d]",i);
+                deblog(msg);
+              }
+          }
+          deblog((char *)"=== kill thread parsing_buf === start");
           pthread_cancel(T_parsing_buf);
+          deblog((char *)"=== kill thread parsing_buf === end");
+
           //pthread_join(T_parsing_buf,0x00);
           ATOM_THREAD_parsing_buf_run.store(false);
         }
@@ -257,7 +238,9 @@ void *F_coordinator(void* vbuf)
       }
       else
         deblog((char *)"thread parsing_buf allready stopped");
+      //======  stop THREAD_parsing_buf ==========
 
+      //======   check parsing_line  for stop   ==========
       if (ATOM_run_parsing_line.load()>0)
       {
         if (DEBUG==true)
@@ -274,7 +257,6 @@ void *F_coordinator(void* vbuf)
                   snprintf(msg,255,"run parsing_line [%d]",i);
                 deblog(msg);
               }
-
           }
         }
         for (int nmbr_kill=0; nmbr_kill<ATOM_run_parsing_line.load();nmbr_kill++)
@@ -282,48 +264,14 @@ void *F_coordinator(void* vbuf)
           sem_post(&SEM_run_parsing_line);
         }
       }
+      //======   check parsing_line  for stop   ==========
 
-      //stop relocate_audit
-      if ((ATOM_THREAD_parsing_buf_run.load()==false) && (ATOM_relocate_auditid_run.load()==true))
-      {
-        if (DEBUG_LEVEL>2)
-          deblog("COORDINATOR:stop relocate_audit");
-        sem_post(&SEM_relocate_audit);
-      }
-      //sem_post(&SEM_line_read);
-      //pthread_kill(T_parsing_buf);
 
-      for (int k=0; k<COUNT_SEQ_MEM_PARSING; k++)
-      {
-        //seq in not parsing buffer
-        if (ATOM_end_seq_mem_parsing[k].load()!=0)
-        {
-          MTX_parsing_line_read_seq.lock();
-
-          int i_line_start=ATOM_start_seq_mem_parsing[k].load();
-          int i_line_end  =ATOM_end_seq_mem_parsing[k].load();
-
-          ATOM_start_seq_mem_parsing[k].store(0);
-          ATOM_end_seq_mem_parsing[k].store(0);
-
-          MTX_parsing_line_read_seq.unlock();
-          //snprintf(msg,255,"end [%d]process not parsing str[%d-%d]\n",k,i_line_start,i_line_end);
-          //deblog(msg);
-          F_parsing_string_to_auditid(buf,i_line_start,i_line_end,array_audit,-1);
-          ATOM_line_read.fetch_sub(1);
-          int number_line_in_queue;
-          sem_getvalue(&SEM_run_parsing_line,&number_line_in_queue);
-          if (number_line_in_queue>0)
-            sem_wait(&SEM_run_parsing_line);
-
-        }
-      }
-      //scan and save all array
-
+      //=========  scan and save all array  =============
       ATOM_THREAD_save_run.store(false);
       ATOM_save_run.store(true);
-      deblog((char *)"finish save");
-      if ((DEBUG_DISPLAY==true) && (DEBUG_LEVEL>2))
+      deblog((char *)"coordinator:finish save");
+      if (DEBUG_LEVEL>3)
         print_ALL_audit();
       //deblog((char *)"F_coordinator");
       //int count_a_save=count_array_audit(0);
@@ -335,53 +283,24 @@ void *F_coordinator(void* vbuf)
       //ATOM_save_count.store(count_a_save);
       ATOM_save_count.store(SIZE_AUDIT);
       sem_post(&SEM_save);
+      //=========  scan and save all array  =============
 
-
-      //deblog((char *)"=== thread coordinator stop ===");
-      //snprintf(msg,255,"line not read:%d",ATOM_line_read.load());
-      //deblog(msg);
-      int number_line_in_queue;
-      sem_getvalue(&SEM_run_parsing_line,&number_line_in_queue);
-      //snprintf(msg,255,"sem for read:%d",number_line_in_queue);
-      //deblog(msg);
-
-      /*if (DEBUG_DISPLAY==true)
+      //======= relocate_audit ===========
+      if (ATOM_relocate_auditid_run.load()==true)
       {
-        printf("========= ATOM_xxx_seq_mem_parsing ======\n");
-        for (int k=0; k<COUNT_SEQ_MEM_PARSING; k++)
+        if (DEBUG_LEVEL>0)
         {
-          if (ATOM_end_seq_mem_parsing[k].load()!=0)
-          {
-            printf("[%d]not parsing [%d-%d]\n",k,ATOM_start_seq_mem_parsing[k].load(),ATOM_end_seq_mem_parsing[k].load());
-          }
+          deblog((char *)"coordinator:!relocate_auditid not stop\n");
         }
-        printf("========= ATOM_xxx_seq_mem_parsing ======\n");
-      }*/
-
-      /*if (DEBUG_DISPLAY==true)
-      {
-        //sleep(1);
-        sem_getvalue(&SEM_run_parsing_line,&number_line_in_queue);
-        printf("=========================\n");
-        printf("line not read:%d\n",ATOM_line_read.load());
-        printf("SEM_run_parsing_line:%d\n",number_line_in_queue);
-        printf("=========================\n");
-        printbuf(buf);
-      }*/
-      //return NULL;
-      if (ATOM_relocate_auditid_run.load()==false)
-      {
-        if ((DEBUG_DISPLAY==true) && (DEBUG_LEVEL>2))
-        {
-          printf("! relocate_auditid not stop\n");
-        }
+        ATOM_start_seq_mem_relocate.store(0);
+        ATOM_end_seq_mem_relocate.store(0);
         sem_post(&SEM_relocate_audit);
       }
+      //======= relocate_audit ===========
+
+      //======= save before stop ===========
       while (ATOM_THREAD_save_run.load()==true)
       {
-
-
-
         if ((DEBUG_DISPLAY==true) && (DEBUG_LEVEL>2))
         {
           printf("!wait save file, save_count=%d\n",ATOM_save_count.load());
@@ -390,74 +309,20 @@ void *F_coordinator(void* vbuf)
         if (ATOM_THREAD_save_run.load()==true)
           sem_post(&SEM_save);
       }
-
-
+      //======= save before stop ===========
       break;
     }
     //========= stop read STDIN ==================
 
-
-
     //==============not porcessed mesg in quiet========
-    for (int k=1; k<COUNT_SEQ_MEM_PARSING; k++)
-    {
-      //mesg in quiet
-      if (ATOM_end_seq_mem_parsing[k].load()!=0)
-      {
-
-        MTX_parsing_line_read_seq.lock();
-
-        int i_line_start=ATOM_start_seq_mem_parsing[k].load();
-        int i_line_end  =ATOM_end_seq_mem_parsing[k].load();
-
-        ATOM_start_seq_mem_parsing[k].store(0);
-        ATOM_end_seq_mem_parsing[k].store(0);
-
-        //search free thread for parsing
-        if (ATOM_end_seq_mem_parsing[0].load()==0)
-        {
-          ATOM_start_seq_mem_parsing[0].store(i_line_start);
-          ATOM_end_seq_mem_parsing[0].store(i_line_end);
-          MTX_parsing_line_read_seq.unlock();
-          //snprintf(msg,255,"[%d]->[0]process not parsing str[%d-%d]\n",k,i_line_start,i_line_end);
-          //deblog(msg);
-        }
-        else
-        {
-          MTX_parsing_line_read_seq.unlock();
-          flag_sleep=false;
-          if ((DEBUG==true) || (DEBUG_DISPLAY==true))
-          {
-            snprintf(msg,255,"coordinator processed seq[%d] str[%d-%d]",k,i_line_start,i_line_end);
-            deblog(msg);
-            }
-          F_parsing_string_to_auditid(buf,i_line_start,i_line_end,array_audit,-1);
-          ATOM_line_read.fetch_sub(1);
-          int number_line_in_queue;
-          sem_getvalue(&SEM_run_parsing_line,&number_line_in_queue);
-          if (number_line_in_queue>0)
-            sem_wait(&SEM_run_parsing_line);
-        }
-      }
-    }
-    //==============not porcessed mesg in quiet========
-
 
     if (flag_sleep==true)
       sleep(1);
+    deblog((char *)".");
     if (DEBUG_DISPLAY==true)
-      printf(".\n");
+      printf((char *)".\n");
   }
-  //sem_init
-  //pthread_cond_init
 
-
-
-  /*sleep(10);
-  //stop thread
-  //pthread_cancel(T_read_STDIN);
-  deblog("set stop flag for read_STDIN");
-  ATOM_THREAD_read_STDIN_run.store(false);*/
 
   deblog((char *)"===== finish coordinator =====");
   return NULL;
@@ -468,116 +333,284 @@ void *F_read_STDIN(void* vbuf)
   char    msg[256];
   deblog((char *)"=== thread read_STDIN start ===");
   int     i=0;
+  int     n_step=0;
   ssize_t nr;
   char    c_char;
+  //char    b_char[512];
+  char    *b_char;
+  int     len_b_char=0;
+  int     size_b_char=DEFAULT_READ_BLOCK_SIZE;
   int     i_line_end=0;
   char*   buf = (char*)vbuf;
   int     coun_line_for_read;
   int     TMP_STAT_read_byte=0;
+  double exec_time,start_time,end_time;
+  if (DEBUG_PROFILE==true)
+    start_time=(double)(clock())/CLOCKS_PER_SEC;
+
+  b_char=(char *)malloc(sizeof(char) * size_b_char);
+  if (!b_char)
+  {
+    ATOM_STAT_memory_read_block_size.store(0);
+    ATOM_STAT_current_read_block_size.store(0);
+    deblog((char *)"error:malloc block read STDIN");
+    ATOM_THREAD_read_STDIN_run.store(false);
+    printf("error:malloc block read STDIN");
+    return NULL;
+  }
 
   ATOM_THREAD_read_STDIN_run.store(true);
+  ATOM_STAT_memory_read_block_size.store(size_b_char);
+  ATOM_STAT_current_read_block_size.store(size_b_char);
 
-  //int pid=getpid();
-  //int ppid=getppid();
-
-  //snprintf(msg,255,"pid=%u ppid=%u",pid,ppid);
-  //deblog(msg);
-
-  while(read(STDIN_FILENO, &c_char, 1) > 0)
+  while((len_b_char=read(STDIN_FILENO, b_char, size_b_char)) > 0)
   {
-    buf[i]=c_char;
-    TMP_STAT_read_byte++;
-		if (buf[i]=='\n' || buf[i]=='\0')
-	  {
-      //=== sync stat=====
-      ATOM_STAT_read_byte.fetch_add(TMP_STAT_read_byte);
-
-      TMP_STAT_read_byte=0;
-      //=== sync stat=====
-      if ((i-i_line_end)==1)
+    //======== read block ===============
+    for (int i_b_char=0; i_b_char<len_b_char; i_b_char++)
+    {
+      if (i_b_char>=size_b_char)
       {
-        i--;
+        deblog((char *)"error:i el >= size_b_char");
+        break;
       }
-      else
+
+      buf[i]=b_char[i_b_char];
+      TMP_STAT_read_byte++;
+      if (buf[i]=='\n' || buf[i]=='\0')
       {
-        i_line_end=i;
-        /*if (DEBUG_DISPLAY==true)
-        {
-          printf("Alr+");
-          printf("[%d]",i);
-        }*/
-        ATOM_line_read.fetch_add(1);
-        /*if (DEBUG_DISPLAY==true)
-        {
-          int val_SEM_line_read;
-          sem_getvalue(&SEM_line_read,&val_SEM_line_read);
-          printf("Slr(%d)+\n",val_SEM_line_read);
-
-
-        }*/
-        sem_post(&SEM_line_read);
+        //=== sync stat=====
+        ATOM_STAT_read_byte.fetch_add(TMP_STAT_read_byte);
+        ATOM_STAT_read_byte_in_block.store(len_b_char);
+        TMP_STAT_read_byte=0;
+        //=== sync stat=====
+          i_line_end=i;
+          ATOM_line_read.fetch_add(1);
+          sem_post(&SEM_line_read);
       }
+
+      i++;
       if (ATOM_cmd_stop.load()==true)
       {
-          deblog((char *)"cmd stop, read_STDIN stopped");
+          deblog((char *)"cmd stop, read_block STDIN stopped");
+          if (i<SIZE_BUF)
+            buf[i]='\0';
+          else
+            buf[i-1]='\0';
           break;
       }
 
-    }
-    i++;
-    if (i>=SIZE_BUF)
-    {
-      //deblog("i>=size_buf");
-      ATOM_line_read.store(0);//count string from start buffer
-      //snprintf(msg,255,"thread read_STDIN over memory buf: last pos %d (i_line_end=%d)",i,i_line_end);
-      //deblog(msg);
-      if (i_line_end==0)
+      if (i>=SIZE_BUF)
       {
-        //deblog("=========> relocate none");
-        i=0;
-      }
-      else
-      {
-        //====relocate not pasring memory to start==== (T_relocate_memory_to_start)
-        /*if (ATOM_relocate_run.load()==true)
+        if (DEBUG_LEVEL>4)
+          deblog((char *)"i>=size_buf");
+        ATOM_line_read.store(0);//count string from start buffer
+        if (DEBUG_LEVEL>5)
         {
-          deblog("=========> relocate is running, wait");
+          snprintf(msg,255,"thread read_STDIN over memory buf: last pos %d (i_line_end=%d)",i,i_line_end);
+          deblog(msg);
+        }
 
-        }*/
-        ATOM_start_seq_mem_relocate.store(i_line_end+1);
-        ATOM_end_seq_mem_relocate.store(i);
-        i=i-(i_line_end+1);
-        /*if (i>0)
+        if (i_line_end==0)
         {
-          //printbuf(buf);
-          snprintf(msg,255,"new pos %d buf[i-1]=%x",i,buf[i-1]);
+          if (DEBUG_LEVEL>5)
+            deblog((char *)"=========> relocate none");
+          i=0;
         }
         else
-          snprintf(msg,255,"new pos %d",i);
-        deblog(msg);
-        deblog("=========> set sem relocate ");*/
-        sem_post(&SEM_relocate_buf);
-        //====relocate not pasring memory to start====
+        {
+          //====relocate not pasring memory to start==== (T_relocate_memory_to_start)
+          if (ATOM_relocate_run.load()==true)
+          {
+            deblog((char *)"=========> relocate is running");
+          }
+          ATOM_start_seq_mem_relocate.store(i_line_end+1);
+          ATOM_end_seq_mem_relocate.store(i);
+          if (DEBUG_LEVEL>4)
+          {
+            snprintf(msg,255,"seq_mem_relocate[%d][%d]",i_line_end+1,i);
+            deblog(msg);
+          }
+          i=i-(i_line_end+1);
+          if (DEBUG_LEVEL>4)
+          {
+            snprintf(msg,255,"new pos %d buf[i-1]=%x",i,buf[i-1]);
+            deblog(msg);
+          }
+
+          if ((i<0) || (i>4096))
+          {
+            deblog((char *)"error position for relocate, reset position");
+            ATOM_start_seq_mem_relocate.store(0);
+            ATOM_end_seq_mem_relocate.store(0);
+            i=0;
+            if (DEBUG_LEVEL>8)
+              printbuf(buf);
+          }
+          else
+          {
+            if (DEBUG_LEVEL>5)
+              deblog((char *)"=========> set sem relocate ");
+            sem_post(&SEM_relocate_buf);
+          }
+          //====relocate not pasring memory to start====
+
+        }
       }
     }
+    //======== read block ===============
+
+    if (ATOM_cmd_stop.load()==true)
+    {
+        deblog((char *)"cmd stop, read_STDIN stopped");
+        break;
+    }
+    ATOM_STAT_read_block.fetch_add(1);
+    if (resize_size_b_char==true)
+    {
+      //======= analiz size size_b_char =======
+      n_step++;
+      if (n_step>4)
+      {
+        if (ATOM_STAT_read_block.load()>32)
+        {
+          switch (size_b_char)
+          {
+            case 64:
+                size_b_char=128;
+                break;
+            case 128:
+                size_b_char=256;
+                break;
+            case 256:
+                size_b_char=512;
+                break;
+            case 512:
+                size_b_char=1024;
+                break;
+            case 1024:
+                size_b_char=2048;
+                break;
+            case 2048:
+                size_b_char=4096;
+                break;
+            case 4096:
+                size_b_char=8192;
+                break;
+            case 8192:
+                size_b_char=16384;
+                break;
+            default:
+                size_b_char=32768;
+          }
+          if (DEBUG_LEVEL>7)
+          {
+            if (ATOM_STAT_memory_read_block_size.load()!=size_b_char)
+            {
+              snprintf(msg,255,"+ size_b_char=%d",size_b_char);
+              deblog(msg);
+            }
+          }
+        }
+
+          if (ATOM_STAT_read_block.load()<4)
+          {
+            switch (size_b_char)
+            {
+              case 16384:
+                  size_b_char=8192;
+                  break;
+              case 8192:
+                  size_b_char=4096;
+                  break;
+              case 4096:
+                  size_b_char=2048;
+                  break;
+              case 2048:
+                  size_b_char=1024;
+                  break;
+              case 1024:
+                  size_b_char=512;
+                  break;
+              case 512:
+                  size_b_char=256;
+                  break;
+              case 256:
+                  size_b_char=128;
+                  break;
+              case 128:
+                  size_b_char=64;
+                  break;
+              default:
+                  size_b_char=32;
+            }
+            if (DEBUG_LEVEL>7)
+            {
+              if (ATOM_STAT_memory_read_block_size.load()!=size_b_char)
+              {
+                snprintf(msg,255,"- size_b_char=%d",size_b_char);
+                deblog(msg);
+              }
+            }
+          }
+        if (ATOM_STAT_current_read_block_size.load()!=size_b_char)
+          ATOM_STAT_current_read_block_size.store(size_b_char);
+
+        if (ATOM_STAT_memory_read_block_size.load()!=size_b_char)
+        {
+          ATOM_STAT_current_read_block_size.store(size_b_char);
+          if (size_b_char>ATOM_STAT_memory_read_block_size.load())
+          {
+            b_char=(char *)realloc(b_char,sizeof(char) * size_b_char);
+            if (DEBUG_LEVEL>7)
+              deblog((char *)"realloc(b_char +)");
+            if (!b_char)
+            {
+              ATOM_STAT_memory_read_block_size.store(0);
+              ATOM_STAT_current_read_block_size.store(0);
+              deblog((char *)"error:realloc block read STDIN");
+              ATOM_THREAD_read_STDIN_run.store(false);
+              printf("error:realloc block read STDIN");
+              return NULL;
+            }
+            ATOM_STAT_memory_read_block_size.store(size_b_char);
+          }
+          else
+          {
+            if (reduce_size_b_char==true)
+            {
+              b_char=(char *)realloc(b_char,sizeof(char) * size_b_char);
+              if (DEBUG_LEVEL>7)
+                deblog((char *)"realloc(b_char -)");
+              if (!b_char)
+              {
+                ATOM_STAT_memory_read_block_size.store(0);
+                ATOM_STAT_current_read_block_size.store(0);
+                deblog((char *)"error:realloc block read STDIN");
+                ATOM_THREAD_read_STDIN_run.store(false);
+                printf("error:realloc block read STDIN");
+                return NULL;
+              }
+              ATOM_STAT_memory_read_block_size.store(size_b_char);
+            }
+            else
+            {
+              if (DEBUG_LEVEL>7)
+                deblog((char *)"reduce_size_b_char=false, no realloc(b_char)");
+            }
+          }
+
+        }
+
+        n_step=0;
+      }
+      //======= analiz size size_b_char ========
+    }
+
   }
-
-  //i_line_end=i;
-
-  //ATOM_start_seq_mem_relocate.store(i_line_end+1);
-  //ATOM_end_seq_mem_relocate.store(i);
-  //snprintf(msg,255,"END read STDIN i=%d",i);
-  //deblog(msg);
   ATOM_line_read.fetch_add(1);
   sem_post(&SEM_line_read);
-
-
-
-  //deblog((char *)">");
   ATOM_THREAD_read_STDIN_run.store(false);
   //deblog((char *)"=== thread read_STDIN stop ===");
-
-  //pthread_cancel(T_parsing_read_buf);
   return NULL;
 }
 
@@ -595,28 +628,37 @@ void *F_relocate_buf_to_start(void* vbuf)
   while (true)
   {
     sem_wait(&SEM_relocate_buf);
-
-
-
-    /*snprintf(msg,255,"relocate: line not read:%d",ATOM_line_read.load());
-    deblog(msg);
-    int number_line_in_queue;
-    sem_getvalue(&SEM_run_parsing_line,&number_line_in_queue);
-    snprintf(msg,255,"relocate: sem for read:%d",number_line_in_queue);
-    deblog(msg);*/
-
     if ( ATOM_THREAD_read_STDIN_run.load() == false )
+    {
+      deblog((char *)"=== therad relocate_buf_to_start stop ===");
       break;
+    }
     ATOM_relocate_run.store(true);
-    //deblog((char *)"start relocate buf");
+    if (DEBUG_LEVEL>0)
+      deblog((char *)"> relocate buf");
+
     i_start=ATOM_start_seq_mem_relocate.load();
     i_end=ATOM_end_seq_mem_relocate.load();
-    for (i=i_start; i < i_end; i++)
+    if (i_end>i_start)
     {
-      buf[i-i_start]=buf[i];
-      buf[i]='\0';
+      ATOM_relocate_RED_ZONE_start_section.store(i_end-i_start);
+      ATOM_relocate_RED_ZONE_end_section.store(i_start);
+
+      for (i=i_start; i < i_end; i++)
+      {
+        buf[i-i_start]=buf[i];
+        buf[i]='\0';
+      }
+      if (DEBUG_LEVEL>6)
+        deblog((char *)"< relocate buf");
+      ATOM_relocate_RED_ZONE_start_section.store(0);
+      ATOM_relocate_RED_ZONE_end_section.store(0);
     }
-    //deblog((char *)"stop relocate buf");
+    else
+    {
+      if (DEBUG_LEVEL>6)
+        deblog((char *)"error pos for relocate buf star > end");
+    }
     ATOM_relocate_run.store(false);
   }
   ATOM_relocate_run.store(false);
@@ -628,7 +670,7 @@ void *F_relocate_buf_to_start(void* vbuf)
 void *F_parsing_buf(void* vbuf)
 {
   char* buf = (char*)vbuf;
-  char  msg[256];
+  char  msg[512];
   int i,i_start;
   int i_line_start=0;
 	int i_line_end=0;
@@ -641,11 +683,13 @@ void *F_parsing_buf(void* vbuf)
   ATOM_parsing_line_processed.store(0);
   ATOM_THREAD_parsing_buf_run.store(true);
   int count_string_in_buf=0;
+  int tr_i;
   sem_wait(&SEM_line_read);
-  deblog("=== thread parsing_buf start ===");
+  double exec_time,start_time,end_time;
+  if (DEBUG_PROFILE==true)
+    start_time=(double)(clock())/CLOCKS_PER_SEC;
+  deblog((char *)"=== thread parsing_buf start ===");
 
-  //snprintf(msg,255,"ATOM_line_read:%d",ATOM_line_read.load());
-  //deblog(msg);
 
   while(true)
   {
@@ -655,172 +699,136 @@ void *F_parsing_buf(void* vbuf)
       //reset count
       count_string_in_buf=0;
     }
-    //protection on null buffer circle
+
     if (buf[i]=='\n' || buf[i]=='\0')
     {
       count_string_in_buf++;
+      buf[i]='\0';
+
+
+      //if ((i_line_end=='\0') || (i_line_end=='\n'))
+        //i_line_start=i_line_end+1;
+      //else
+      i_line_start=i_line_end;
       i_line_end=i;
 
-      if (i_line_end-i_line_start>6)
+      if (i_line_start>i_line_end)
+      {
+        if (DEBUG_LEVEL>3)
+        {
+          snprintf(msg,255,"i_line_start=%d > i_line_end=%d",i_line_start,i_line_end);
+          deblog(msg);
+        }
+        i_line_start=0;
+      }
+
+      //===cut header [0]===
+      if ((buf[i_line_start]=='\0') || (buf[i_line_start]=='\n'))
       {
 
-        buf[i]='\0';
-        if (i_line_start>i_line_end)
+        for (tr_i=i_line_start; tr_i<i_line_end; tr_i++)
         {
-          //snprintf(msg,255,"i_line_start=%d > i_line_end=%d",i_line_start,i_line_end);
-          //deblog(msg);
-          i_line_start=0;
-        }
-        //========== parsing line ============
-        //snprintf(msg,255,"parsing line i_line_start=%d i_line_end=%d",i_line_start,i_line_end);
-        //deblog(msg);
-        MTX_parsing_line_read_seq.lock();
-        int k=0;
-        if (ATOM_end_seq_mem_parsing[k].load()!=0)
-        {
-          //push_skipped_queue(buf,ATOM_start_seq_mem_parsing.load(),ATOM_end_seq_mem_parsing.load());
-          for (k=1; k<COUNT_SEQ_MEM_PARSING; k++)
+          if ((buf[tr_i]=='\0') || (buf[tr_i]=='\n'))
           {
-            if (ATOM_end_seq_mem_parsing[k].load()==0)
-            {
-              if (DEBUG_LEVEL>1)
-              {
-                if ((DEBUG==true) || (DEBUG_DISPLAY==true))
-                {
-                  snprintf(msg,255,"add seq to array for parsing store seq mem in k el:%d,<%d;%d>",k,i_line_start,i_line_end);
-                  deblog(msg);
-                }
-              }
-              ATOM_start_seq_mem_parsing[k].store(i_line_start);
-              ATOM_end_seq_mem_parsing[k].store(i_line_end);
-              break;
-            }
+            buf[tr_i]='\0';
           }
-          if (k>=COUNT_SEQ_MEM_PARSING)
+          else
           {
-            printf("error, too many audit events, write audit to stdout\n");
-            for (int m=i_line_start; m<i_line_end; m++)
-            {
-              printf("%c",buf[m]);
-              //clear str in buf
-              buf[m]='\0';
-            }
-            printf("\n");
+            i_line_start=tr_i;
+            break;
           }
-        }
-        else
-        {
-          ATOM_start_seq_mem_parsing[k].store(i_line_start);
-          ATOM_end_seq_mem_parsing[k].store(i_line_end);
-        }
-        MTX_parsing_line_read_seq.unlock();
-        sem_post(&SEM_run_parsing_line);
-        sem_getvalue(&SEM_run_parsing_line,&coun_thread_parsing_run);
-        /*if (DEBUG==true)
-        {
-          snprintf(msg,255,"SEM_run_parsing_line:%d",coun_thread_parsing_run);
-          deblog(msg);
-        }*/
-        if (coun_thread_parsing_run>(COUNT_PARALLEL_PARSING*4))
-        {
-          deblog((char *)"over read line for pasring, increase COUNT_PARALLEL_PARSING parameter");
-          //sem_wait()
         }
 
-        //========== parsing line ============
       }
-      i_line_start=i+1;
-      //==========================
+      //===cut header [0]===
+
+
+
+      //========== parsing line ==================================================
+      MTX_parsing_line_read_seq.lock();
+      if (DEBUG_LEVEL>7)
+      {
+        snprintf(msg,255,"parsing line i_line_start=%d i_line_end=%d",i_line_start,i_line_end);
+        deblog(msg);
+      }
+      if (i_line_start!=i_line_end)
+      {
+        int k;
+        for (k=0; k<COUNT_SEQ_MEM_PARSING; k++)
+        {
+          if (ATOM_end_seq_mem_parsing[k].load()==0)
+          {
+            if (DEBUG_LEVEL>5)
+            {
+              snprintf(msg,255,"add seq to array for parsing store seq mem in k el:%d,<%d;%d>",k,i_line_start,i_line_end);
+              deblog(msg);
+            }
+            ATOM_start_seq_mem_parsing[k].store(i_line_start);
+            ATOM_end_seq_mem_parsing[k].store(i_line_end);
+            break;
+          }
+        }
+
+        if (k>=COUNT_SEQ_MEM_PARSING)
+        {
+          ATOM_STAT_raw_auditd_error.fetch_add(1);
+          /*snprintf(msg,511,"too many audit events\nCOUNT_SEQ_MEM_PARSING=%d\nk=%d\ni_line_start=%d\ni_line_end=%d\nATOM_save_run=%d\nATOM_THREAD_parsing_line_processing[0]=%d",COUNT_SEQ_MEM_PARSING,k,i_line_start,i_line_end,ATOM_save_run.load(),ATOM_THREAD_parsing_line_processing[0].load());
+          save_err(msg);
+          printf("error, too many audit events, write audit to stdout\n");*/
+        }
+      }
+      else
+      {
+        if (DEBUG_LEVEL>0)
+        {
+          snprintf(msg,255,"skeep add to ATOM_end_seq_mem_parsing (i_line_start=i_line_end)");
+          deblog(msg);
+        }
+      }
+      MTX_parsing_line_read_seq.unlock();
+      sem_post(&SEM_run_parsing_line);
+      //========== parsing line ==================================================
+
+      if (DEBUG_PROFILE==true)
+      {
+        end_time=(double)(clock())/CLOCKS_PER_SEC;
+        exec_time=end_time-start_time;
+        if (exec_time>DISPLAY_PROFILE_OVER)
+        {
+          snprintf(msg,255,"profiling[F_parsing_buf(iteration)]:%f",exec_time);
+          deblog(msg);
+        }
+      }
+      sem_wait(&SEM_line_read);
+      if (DEBUG_PROFILE==true)
+        start_time=(double)(clock())/CLOCKS_PER_SEC;
+
       if (ATOM_THREAD_read_STDIN_run.load()==false)
       {
         coun_line_for_read=0;
-        //if (coun_line_for_read==-1)
-        //{
-          for (int n=0; n<SIZE_BUF; n++)
-          {
-            if (buf[n]=='\n')
-              coun_line_for_read++;
-          }
-        //}
+        for (int n=0; n<SIZE_BUF; n++)
+        {
+          if (buf[n]=='\n')
+            coun_line_for_read++;
+        }
         if (coun_line_for_read==0)
         {
           deblog((char *)"=== end parsing_buf ===");
-          if (DEBUG_LEVEL>3)
+          if (DEBUG_LEVEL>8)
             printbuf(buf);
           break;
         }
       }
-      //==========================
-      //snprintf(msg,255,"ATOM_line_read:%d",ATOM_line_read.load());
-      //deblog(msg);
-      if (ATOM_need_save.load()==true)
-      {
-        if (ATOM_save_run.load()==false)
-        {
-          //test use size buf audit
-          //if count filled array audit >= 80 % size audit F_save_file
-
-          if (count_array_audit(0)>MAX_AUDIT_BEFORE_SAVE_TO_FILE)
-          {
-              //save_to file 60% audit
-              ATOM_save_count.store(SAVE_AUDIT);
-              ATOM_save_run.store(true);
-              sem_post(&SEM_save);
-              ATOM_need_save.store(false);
-          }
-        }
-      }
-
-      //if (DEBUG_DISPLAY==true)
-        //printf("Slr(%d) --",i);
-      sem_wait(&SEM_line_read);
-
-      i++;
-      //clear zerro at row
-      for (; i<SIZE_BUF; i++)
-      {
-        if (buf[i]!='\n' && buf[i]!='\0')
-        { i_line_end=i-1;
-          break;
-        }
-      }
     }
-    else
-      i++;
+
+    i++;
     if (i>=SIZE_BUF)
     {
       i=0;
       i_line_start=0;
-
-      //====sync SEM_line_read and ATOM_line_read=====
-      int val_ATOM_line_read=ATOM_line_read.load();
-      int number_line_in_queue;
-      sem_getvalue(&SEM_run_parsing_line,&number_line_in_queue);
-
-
-      //snprintf(msg,255,"====sync=== line not read:%d",val_ATOM_line_read);
-      //deblog(msg);
-      //snprintf(msg,255,"====sync=== sem for read:%d",number_line_in_queue);
-      //deblog(msg);
-
-
-      if ((val_ATOM_line_read-1)>number_line_in_queue)
-      {
-        //deblog((char *)"====== corect sem++ !!!");
-        sem_post(&SEM_line_read);
-      }
-      //====sync SEM_line_read and ATOM_line_read=====
-      //protection fron nul circle
-      if (count_string_in_buf==0)
-      {
-        //deblog("null buf, sem--");
-        ATOM_line_read.store(0);
-        sem_wait(&SEM_line_read);
-      }
       //protection null
     }
   }
-
   ATOM_THREAD_parsing_buf_run.store(false);
   return NULL;
 }
@@ -831,6 +839,9 @@ void *F_parsing_line(void* vbuf)
   char  msg[256];
   int i_line_start;
   int i_line_end;
+  double exec_time,start_time,end_time;
+  if (DEBUG_PROFILE==true)
+    start_time=(double)(clock())/CLOCKS_PER_SEC;
   int n_thread=ATOM_run_parsing_line.fetch_add(1);
   ATOM_THREAD_parsing_line_run[n_thread].store(true);
   if ((DEBUG==true) || (DEBUG_DISPLAY==true))
@@ -838,10 +849,24 @@ void *F_parsing_line(void* vbuf)
   deblog(msg);
   ATOM_THREAD_start_seq_mem[n_thread].store(0);
   ATOM_THREAD_end_seq_mem[n_thread].store(0);
+
   while(true)
   {
-
+    ATOM_THREAD_parsing_line_processing[n_thread].store(false);
+    if (DEBUG_PROFILE==true)
+    {
+      end_time=(double)(clock())/CLOCKS_PER_SEC;
+      exec_time=end_time-start_time;
+      if (exec_time>DISPLAY_PROFILE_OVER_F_parsing_line)
+      {
+        snprintf(msg,255,"profiling[F_parsing_line %d (iteration)]:%f",n_thread,exec_time);
+        deblog(msg);
+      }
+    }
     sem_wait(&SEM_run_parsing_line);
+    if (DEBUG_PROFILE==true)
+      start_time=(double)(clock())/CLOCKS_PER_SEC;
+    ATOM_THREAD_parsing_line_processing[n_thread].store(true);
     //if ( ATOM_THREAD_parsing_buf_run.load() == false )
       //break;
     MTX_parsing_line_read_seq.lock();
@@ -878,22 +903,9 @@ void *F_parsing_line(void* vbuf)
 
     if (i_line_end!=0)
     {
-      //snprintf(msg,255,"parsing[%d] %d %d",n_thread,i_line_start,i_line_end);
-      //deblog(msg);
-      //debbuf(i_line_start,i_line_end,buf);
       F_parsing_string_to_auditid(buf,i_line_start,i_line_end,array_audit,n_thread);
       ATOM_line_read.fetch_sub(1);
     }
-    /*else
-    {
-
-      //snprintf(msg,255,"parsing[%d] error run parsing, end is null(i_line_start:%d,i_line_end:%d ATOM_last_end_seq_mem:%d)!!!",n_thread,i_line_start,i_line_end,ATOM_last_end_seq_mem.load());
-      //deblog(msg);
-      //printbuf(buf);
-    }*/
-
-
-
 
     if ( ATOM_THREAD_parsing_buf_run.load() == false )
       break;
@@ -931,7 +943,7 @@ void STAT_UID_add(int c_uid)
   {
     array_STAT_UID[COUNT_STAT_UID-1].uid=c_uid;
     array_STAT_UID[COUNT_STAT_UID-1].count=1;
-    deblog("COUNT_STAT_UID is small");
+    deblog((char *)"COUNT_STAT_UID is small");
   }
   MTX_STAT_UID.unlock();
 }
@@ -982,12 +994,17 @@ void clear_STAT_UID()
 void *F_save_file(void* varray_audit)
 {
   char msg[256];
+  double exec_time,start_time,end_time;
   int array_count_save;
   struct tm *local_tm;
   struct tm  l_tm;
+
+  if (DEBUG_PROFILE==true)
+    start_time=(double)(clock())/CLOCKS_PER_SEC;
+
   s_audit* f_array = (s_audit*)varray_audit;
   ATOM_THREAD_save_run.store(true);
-  deblog("=== thread save to file start ===");
+  deblog((char *)"=== thread save to file start ===");
 
   int pid=getpid();
   int ppid=getppid();
@@ -1000,15 +1017,15 @@ void *F_save_file(void* varray_audit)
     //===== adminfile cmd storefile ====
     if (ATOM_cmd_logrotate.load()==true)
     {
-      deblog("logrotate start");
+      deblog((char *)"logrotate start");
       rename(logfile,storefile);
       ATOM_cmd_logrotate.store(false);
-      deblog("logrotate end");
-      //sem_wait(&SEM_save);
+      deblog((char *)"logrotate end");
+
     }
     if (ATOM_cmd_logrotated.load()==true)
     {
-      deblog("logrotated start");
+      deblog((char *)"logrotated start");
       char storefiled_extdate[256];
       //====curent time====
       struct tm *local_tm;
@@ -1020,12 +1037,12 @@ void *F_save_file(void* varray_audit)
       snprintf(storefiled_extdate,255,"%s.%04d%02d%02d_%02d%02d%02d",storefile,l_tm.tm_year+1900,l_tm.tm_mon+1,l_tm.tm_mday,l_tm.tm_hour,l_tm.tm_min,l_tm.tm_sec);
       rename(logfile,storefiled_extdate);
       ATOM_cmd_logrotated.store(false);
-      deblog("logrotated end");
-      //sem_wait(&SEM_save);
+      deblog((char *)"logrotated end");
+
     }
     if (ATOM_cmd_logrotategz.load()==true)
     {
-      deblog("logrotatgz start");
+      deblog((char *)"logrotatgz start");
       rename(logfile,uncompressfile);
       //set detach thread compress
       pthread_attr_t threadAttr;
@@ -1034,21 +1051,33 @@ void *F_save_file(void* varray_audit)
       pthread_create(&T_compress_file,&threadAttr,F_compress_file,NULL);
 
       ATOM_cmd_logrotategz.store(false);
-      deblog("logrotatgz end");
-      //sem_wait(&SEM_save);
+      deblog((char *)"logrotatgz end");
+
     }
     //===== adminfile cmd storefile ====
     //====================wait=========================================
-    //deblog("sem wait:SEM_save");
+    if (DEBUG_PROFILE==true)
+    {
+      end_time=(double)(clock())/CLOCKS_PER_SEC;
+      exec_time=end_time-start_time;
+      snprintf(msg,255,"profiling[F_save_file(iteration)]:%f",exec_time);
+      deblog(msg);
+    }
+    if (DEBUG_LEVEL>4)
+      deblog((char *)"sem wait:SEM_save");
     sem_wait(&SEM_save);
+    if (DEBUG_PROFILE==true)
+      start_time=(double)(clock())/CLOCKS_PER_SEC;
     //====================wait=========================================
     array_count_save=ATOM_save_count.load();
     //== start save ===
     ATOM_save_run.store(true);
-    if (DEBUG_LEVEL>1)
-      deblog("==== > filtering");
-    filtering(f_array,array_count_save);
-
+    if (FILTER==ON)
+    {
+      if (DEBUG_LEVEL>1)
+        deblog((char *)"==== > filtering");
+      filtering(f_array,array_count_save);
+    }
     if (DEBUG_LEVEL>0)
       if ((DEBUG==true) || (DEBUG_DISPLAY==true))
       {
@@ -1056,7 +1085,7 @@ void *F_save_file(void* varray_audit)
         deblog(msg);
       }
     if (DEBUG_LEVEL>1)
-      deblog("open logfile");
+      deblog((char *)"open logfile");
     if ((f_logfile=fopen(logfile,"a"))!=NULL)
     {
       int i;
@@ -1227,9 +1256,11 @@ void *F_save_file(void* varray_audit)
 
             if (strlen(f_array[i].SYSCALL)>0)
               fprintf(f_logfile,"syscall=\"%s\" ",f_array[i].SYSCALL);
-            if (f_array[i].syscall>=0)
-              fprintf(f_logfile,"syscall=\"%d\" ",f_array[i].syscall);
-
+            else
+            {
+              if (f_array[i].syscall>=0)
+                fprintf(f_logfile,"syscall=\"%d\" ",f_array[i].syscall);
+            }
             if (strlen(f_array[i].op)>0)
               fprintf(f_logfile,"op=\"%s\" ",f_array[i].op);
             if (strlen(f_array[i].vm)>0)
@@ -1261,7 +1292,10 @@ void *F_save_file(void* varray_audit)
               fprintf(f_logfile,"unit=\"%s\" ",f_array[i].unit);
             if (strlen(f_array[i].success)>0)
               fprintf(f_logfile,"success=\"%s\" ",f_array[i].success);
-
+            if (f_array[i].items_isset==true)
+              fprintf(f_logfile,"items=\"%d\" ",f_array[i].items);
+            if (f_array[i].exit_isset==true)
+              fprintf(f_logfile,"exit=\"%d\" ",f_array[i].exit);
             if (strlen(f_array[i].command)>0)
               fprintf(f_logfile,"command=\"%s\" ",f_array[i].command);
 
@@ -1287,12 +1321,14 @@ void *F_save_file(void* varray_audit)
             ATOM_filtering_pid.fetch_add(1);
           }
           //clear
-          f_array[i].auditid=0;
+          memset((&f_array[i]),0,sizeof(s_audit));
+          //clear_array_audit_id(f_array,i);
         }
       }
-      if (DEBUG_LEVEL==3)
-        deblog("close logfile");
+      if (DEBUG_LEVEL>1)
+        deblog((char *)"close logfile");
       fclose(f_logfile);
+      ATOM_save_step.fetch_add(1);
     }
     else
       printf("error save file %s\n",logfile);
@@ -1302,23 +1338,25 @@ void *F_save_file(void* varray_audit)
       break;
     // lock array and remove not save array to start array
 
+
+    //-------- set val for relocate ----------------
     //count el in array start with array_count_save
     int max_array_count=count_array_audit(array_count_save);
 
     ATOM_start_audit_relocate.store(array_count_save);
     ATOM_end_audit_relocate.store(max_array_count);
-    if (DEBUG_LEVEL>0)
-      deblog("end step save, run relocate");
+    if (DEBUG_LEVEL>2)
+      deblog((char *)"end step save, run relocate");
+
     sem_post(&SEM_relocate_audit);
     // unlock all
-    if (DEBUG_LEVEL>1)
+
+    if (DEBUG_LEVEL>3)
     {
-      if ((DEBUG==true) || (DEBUG_DISPLAY==true))
-      {
     	  snprintf(msg,255,"ATOM_start_audit_relocate=%d ATOM_end_audit_relocate=%d",array_count_save,max_array_count);
     	  deblog(msg);
-      }
     }
+    //-------- set val for relocate ----------------
     ATOM_save_count.store(0);
     ATOM_save_run.store(false);
     //=== end save ===
@@ -1334,11 +1372,27 @@ void *F_save_file(void* varray_audit)
 
 void *F_relocate_audit(void* varray_audit)
 {
+  char msg[256];
+  double exec_time,start_time,end_time;
+  if (DEBUG_PROFILE==true)
+    start_time=(double)(clock())/CLOCKS_PER_SEC;
   s_audit* f_array = (s_audit*)varray_audit;
   ATOM_relocate_auditid_run.store(true);
   while(true)
   {
+    if (DEBUG_PROFILE==true)
+    {
+      end_time=(double)(clock())/CLOCKS_PER_SEC;
+      exec_time=end_time-start_time;
+      if (exec_time>DISPLAY_PROFILE_OVER)
+      {
+        snprintf(msg,255,"profiling[F_relocate_audit(iteration)]:%f",exec_time);
+        deblog(msg);
+      }
+    }
     sem_wait(&SEM_relocate_audit);
+    if (DEBUG_PROFILE==true)
+      start_time=(double)(clock())/CLOCKS_PER_SEC;
     if (ATOM_THREAD_parsing_buf_run.load()==false)
       break;
     ATOM_relocate_processed.store(true);
@@ -1347,8 +1401,8 @@ void *F_relocate_audit(void* varray_audit)
     int end_i = ATOM_end_audit_relocate.load();
     ATOM_post_relocate.store(end_i-start_i);
     //count_relocate_auditid=ATOM_relocate_auditid.load();
-    if (DEBUG_LEVEL>0)
-      deblog("==== relocate f_array ====");
+    if (DEBUG_LEVEL>2)
+      deblog((char *)"==== relocate f_array ====");
     int delta_first_free=0;
     for (int i=start_i; i<end_i; i++)
     {
@@ -1380,7 +1434,7 @@ void *F_relocate_audit(void* varray_audit)
         }
         else
         {
-          deblog("  relocate: error search free el in f_array");
+          deblog((char *)"  relocate: error search free el in f_array");
         }
       }
 
@@ -1396,7 +1450,10 @@ void *F_relocate_audit(void* varray_audit)
         }
         //f_array[i-start_i].auditid=f_array[i].auditid;
         memcpy((&f_array[i-start_i+delta_first_free]),(&f_array[i]),sizeof(s_audit));
+        // ===== clear ======
         memset((&f_array[i]),0,sizeof(s_audit));
+        //clear_array_audit_id(f_array,i);
+
         //f_array[i].auditid=0;
       }
     }
@@ -1446,6 +1503,13 @@ void write_stat(FILE *f_stat)
     if ( ATOM_THREAD_read_STDIN_run.load() == true )
       fprintf(f_stat,"thread write buf running\n");
     fprintf(f_stat,"read byte:%d\n",ATOM_STAT_read_byte.load());
+    fprintf(f_stat,"memory size read block:%d\n",ATOM_STAT_memory_read_block_size.load());
+    fprintf(f_stat,"current size read block:%d\n",ATOM_STAT_current_read_block_size.load());
+    if (ATOM_STAT_read_byte_in_block.load()>0)
+      fprintf(f_stat,"read block in:%d\n",ATOM_STAT_read_byte_in_block.load());
+    fprintf(f_stat,"read block:%d\n",ATOM_STAT_read_block.load());
+
+
     fprintf(f_stat,"string in buf not parsing:%d\n",ATOM_line_read.load());
     fprintf(f_stat,"raw audit line:%d\n",ATOM_STAT_line_auditd.load());
 
@@ -1460,16 +1524,38 @@ void write_stat(FILE *f_stat)
 
         }
     }
-
-    if (ATOM_count_ignore_key.load()>0)
+    fprintf(f_stat,"\n");
+    if ((DEBUG==true) || (DEBUG_DISPLAY==true))
     {
-      fprintf(f_stat,"filtering on one record:%d\n",ATOM_filtering.load());
-      fprintf(f_stat,"filtering:%d\n",ATOM_STAT_filtering.load());
+      fprintf(f_stat,"==== DEBUG ====\n");
+      fprintf(f_stat,"DEBUG_LEVEL:%d\n",DEBUG_LEVEL);
+      fprintf(f_stat,"==== DEBUG ====\n");
+    }
+    if (DEBUG_PROFILE==true)
+    {
+      fprintf(f_stat,"==== PROFILING ====\n");
+      fprintf(f_stat,"DISPLAY PROFILE OVER:%f\n",DISPLAY_PROFILE_OVER);
+      fprintf(f_stat,"==== PROFILING ====\n");
+    }
+    if (FILTER==ON)
+    {
+      if (ATOM_count_ignore_key.load()>0)
+      {
+        fprintf(f_stat,"filtering on one record:%d\n",ATOM_filtering.load());
+        fprintf(f_stat,"filtering:%d\n",ATOM_STAT_filtering.load());
+      }
     }
     fprintf(f_stat,"filtering pid and ppid:%d\n",ATOM_filtering_pid.load());
-
-    fprintf(f_stat,"save count to log:%d\n",ATOM_save_line.load());
-
+    fprintf(f_stat,"\n");
+    fprintf(f_stat,"save line to log:%d\n",ATOM_save_line.load());
+    fprintf(f_stat,"\n");
+    fprintf(f_stat,"save step:%d\n",ATOM_save_step.load());
+    fprintf(f_stat,"\n");
+    fprintf(f_stat,"raw audit error:%d\n",ATOM_STAT_raw_auditd_error.load());
+    fprintf(f_stat,"audit error:%d\n",ATOM_STAT_auditd_error.load());
+    if (ATOM_STAT_leak.load()>0)
+      fprintf(f_stat,"leak:%d\n",ATOM_STAT_leak.load());
+    fprintf(f_stat,"\n");
     fprintf(f_stat,"==== max record uid ====\n");
     sort_STAT_UID();
 
@@ -1479,6 +1565,7 @@ void write_stat(FILE *f_stat)
       fprintf(f_stat,"uid:%d\tcount rec:%d\n",array_STAT_UID[i].uid,array_STAT_UID[i].count);
     }
     fprintf(f_stat,"==== max record uid ====\n");
+
     fprintf(f_stat,"\n");
     if (ATOM_relocate_processed.load()==true)
       fprintf(f_stat,"relocate array audit processed\n");
@@ -1489,17 +1576,21 @@ void write_stat(FILE *f_stat)
   else
     printf("error create statistic file %s\n",statfile);
   ATOM_STAT_read_byte.store(0);
+  ATOM_STAT_read_block.store(0);
   ATOM_STAT_line_auditd.store(0);
   ATOM_STAT_filtering.store(0);
+  ATOM_STAT_raw_auditd_error.store(0);
+  ATOM_STAT_auditd_error.store(0);
   ATOM_filtering_pid.store(0);
   ATOM_save_line.store(0);
+  ATOM_save_step.store(0);
   clear_STAT_UID();
   //========== stat file ===========
 }
 
 void print_stat()
 {
-  write_stat(f_debug);
+  write_stat(f_stat);
 }
 
 void *F_stat(void*)
@@ -1507,21 +1598,41 @@ void *F_stat(void*)
   deblog((char *)"=== thread stat start ===");
   write_stat(f_stat);
   while (true)
-  {
+  {sleep(1);
     for (int t=0;t<STAT_INTERVAL;t++)
     {
       if (ATOM_THREAD_read_STDIN_run.load()==true)
         sleep(1);
     }
-    save_deblog();
-    write_stat(f_stat);
+
     if (ATOM_THREAD_read_STDIN_run.load()==false)
+    {
+      ATOM_STAT_read_byte.store(0);
+      ATOM_STAT_read_block.store(0);
+      ATOM_STAT_memory_read_block_size.store(0);
+      ATOM_STAT_current_read_block_size.store(0);
+      ATOM_STAT_read_byte_in_block.store(0);
+      ATOM_STAT_line_auditd.store(0);
+      ATOM_STAT_filtering.store(0);
+      ATOM_STAT_raw_auditd_error.store(0);
+      ATOM_STAT_auditd_error.store(0);
+      ATOM_filtering_pid.store(0);
+      ATOM_save_line.store(0);
+      ATOM_save_step.store(0);
+
+      write_stat(f_stat);
+
       break;
+    }
+    else
+    {
+      save_deblog();
+      write_stat(f_stat);
+    }
   }
   deblog((char *)"=== thread end stat ===");
   return NULL;
 }
-
 
 void *F_compress_file(void* vbuf)
 {
@@ -1543,6 +1654,7 @@ void *F_compress_file(void* vbuf)
   //fp_dst = fopen(compressfile_extdate,"w");
   //int ret = f_zlib(fp_src,fp_dst,ZLEVEL);
   int ret = f_zlib((char*)uncompressfile,(char*)compressfile_extdate,ZLEVEL);
+  return NULL;
 }
 
 int f_zlib(char *ufile, char *cfile, int level)
@@ -1554,7 +1666,7 @@ int f_zlib(char *ufile, char *cfile, int level)
     unsigned char out[CHUNK];
 
     ATOM_compress_gz.store(true);
-    deblog("compress start");
+    deblog((char *)"compress start");
     FILE *source = fopen(ufile,"r");
     FILE *dest = fopen(cfile,"w");
 
@@ -1567,7 +1679,7 @@ int f_zlib(char *ufile, char *cfile, int level)
     if (ret != Z_OK)
     {
       ATOM_compress_gz.store(false);
-      deblog("error compress (deflateInit2)");
+      deblog((char *)"error compress (deflateInit2)");
       //fclose(dest);
       //fclose(source);
       return ret;
@@ -1578,7 +1690,7 @@ int f_zlib(char *ufile, char *cfile, int level)
         if (ferror(source)) {
             (void)deflateEnd(&strm);
             ATOM_compress_gz.store(false);
-            deblog("error compress: read");
+            deblog((char *)"error compress: read");
             fclose(dest);
             fclose(source);
             return Z_ERRNO;
@@ -1596,7 +1708,7 @@ int f_zlib(char *ufile, char *cfile, int level)
             if (fwrite(out, 1, have, dest) != have || ferror(dest)) {
                 (void)deflateEnd(&strm);
                 ATOM_compress_gz.store(false);
-                deblog("error compress: write");
+                deblog((char *)"error compress: write");
                 fclose(dest);
                 fclose(source);
                 return Z_ERRNO;
@@ -1608,10 +1720,10 @@ int f_zlib(char *ufile, char *cfile, int level)
     assert(ret == Z_STREAM_END);        /* stream will be complete */
     /* clean up and return */
     (void)deflateEnd(&strm);
-    deblog("compress finish");
+    deblog((char *)"compress finish");
     fclose(dest);
     fclose(source);
-    deblog("remove uncompresed file");
+    deblog((char *)"remove uncompresed file");
     remove(ufile);
     ATOM_compress_gz.store(false);
     return Z_OK;
