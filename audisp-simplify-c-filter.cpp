@@ -2,6 +2,7 @@
 #include "audisp-simplify-c-str-function.h"
 #include "audisp-simplify-c-filter.h"
 
+
 int size_audit_reserved_key=0;
 const char *audit_reserved_key="auid auid_user uid uid_user euid euid_user suid suid_user fsuid fsuid_user ouid ouid_user agid agid_group gid gid_group egid egid_group sgid sgid_group fsgid fsgid_group ogid ogid_group addr exe key newcontext oldcontext terminal tty cipher mac laddr lport SYSCALL cwd cmd command args proctitle saddr avc types acct unit names success";
 size_t *array_hash_uniq_ignore_key;
@@ -44,7 +45,7 @@ void printignore()
   }
 }
 
-/* D. J. Bernstein hash function */
+// D. J. Bernstein hash function
 static size_t djb_hash(const char* cp)
 {
     size_t hash = 5381;
@@ -54,7 +55,7 @@ static size_t djb_hash(const char* cp)
 }
 
 
-/* Fowler/Noll/Vo (FNV) hash function, variant 1a */
+// Fowler/Noll/Vo (FNV) hash function, variant 1a
 static size_t fnv1a_hash(const char* cp)
 {
     size_t hash = 0x811c9dc5;
@@ -64,7 +65,7 @@ static size_t fnv1a_hash(const char* cp)
     }
     return hash;
 }
-
+/*
 void print_hash_audit_reserved_key()
 {
   char key[255];
@@ -92,7 +93,7 @@ void print_hash_audit_reserved_key()
       printf("error open debug file %s\n",deblogfile);
 	}
 }
-
+*/
 int init_available_hash_ignore_key()
 {
   char   key[255];
@@ -143,8 +144,8 @@ bool is_hash_in_array_available_hash_ignore_key(size_t key)
   {
     if (available_hash_ignore_key[i]==key)
     {
-      //if (DEBUG_LEVEL==3)
-        //deblog("find filtering key");
+      if (DEBUG_LEVEL>3)
+        deblog((char *)"find filtering key");
 
       return true;
     }
@@ -164,7 +165,7 @@ int add_ignore_key(size_t *a_hash_uniq_ignore_key,int sz,size_t key)
       return i;
     }
   }
-  deblog("[add_ignore_key]over max_count_uniq_ignore_key\n");
+  deblog((char *)"[add_ignore_key]over max_count_uniq_ignore_key\n");
   return i;
 }
 
@@ -180,7 +181,7 @@ int add_ignore(size_t key, char *val)
       if (strlen(array_ignore[i].value)>0)
   	  {
         if (DEBUG_LEVEL>0)
-				  deblog("function add_ignore:append");
+				  deblog((char *)"function add_ignore:append");
         strnaddchar(array_ignore[i].value,' ',1024);
   	  }
       if (DEBUG_LEVEL>1)
@@ -221,7 +222,6 @@ int count_uniq_ignore_key(size_t *a_hash_uniq_ignore_key,int sz)
 bool is_filter_d(size_t hash_ignore_key,int val)
 {
   char msg[256];
-
 
   //empty array
   int count_ignore_key=ATOM_count_ignore_key.load();
@@ -379,11 +379,8 @@ bool is_filter(size_t hash_ignore_key,char *val, bool multi_val=false)
                     }
                   }
                 }
-                /*
-                if ((array_ignore[i].value[start_j]!='*') && (cur_ignore_clear_value[0]==val[0]))
-                {
 
-                }*/
+
               }
             }
             //=========== search ===============
@@ -484,141 +481,13 @@ bool is_filter(size_t hash_ignore_key,char *val, bool multi_val=false)
               }
             }
             //=========== search ===============
-  /*
-            for (k=0;k<end_k;k++)
-  					{
-              if (cur_clear_value[0]==val[k])
-              {
-                bool flag_match=true;
-                //start comparison
-                if (k==0 || cur_value[0]=='*')
-        				{
-                  int m;
-                  //====scan and comparison two string====
-                  for (m=1;m<strlen(val);m++)
-                  {
-                    if (cur_clear_value[m]!=val[k+m])
-                    {
-                      flag_match=false;
-                      if ((DEBUG_LEVEL>2) && (DEBUG_DISPLAY==true))
-                          printf("![%c!=%c]!\n",cur_clear_value[m],val[k+m]);
-                      break;
-                    }
-                    else
-                    {
-                      if ((DEBUG_LEVEL>2) && (DEBUG_DISPLAY==true))
-                          printf("%c",val[k+m]);
-                    }
-                  }
-                  //not end string val
-                  if (flag_match==true)
-                  {
-                    if (m<(strlen(val)-1) && cur_value[strlen(cur_value)-1]!='*')
-                      flag_match=false;
-                  }
-                  //====scan and comparison two string====
-                }
-                else
-                {
-                  flag_match=false;
-                }
 
-                if (flag_match==true)
-                {
-                  if (DEBUG_LEVEL>2)
-                  {
-                    if ((DEBUG==true) || (DEBUG_DISPLAY==true))
-                    {
-                      deblog("find filter text");
-                    }
-                  }
-                  return true;
-                }
-              }
-            }
-  */
           }
 
 
 
 
-  /*				int j_start_value=0;
-  				//patern with *
-  				char cur_value[1024];
-  				//patern without *
-  				char cur_clear_value[1024];
-  				if ((array_ignore[i].value[j]==' ') || (array_ignore[i].value[j]=='\0') || (j==(strlen(array_ignore[i].value)-1)))
-  				{
-  					int start_j=j_start_value;
-  					int end_j=j-1;
-  					copystr_start_posi_end_posi(cur_value,array_ignore[i].value,start_j,end_j,1024);
-            if ((DEBUG_LEVEL>2) && (DEBUG_DISPLAY==true))
-              printf("cur_value:%s\n",cur_value);
-  					if (array_ignore[i].value[start_j]=='*' && start_j<(strlen(array_ignore[i].value)-1))
-  						start_j++;
-  					if (array_ignore[i].value[end_j]=='*' && end_j>0)
-  						end_j--;
-  					copystr_start_posi_end_posi(cur_clear_value,array_ignore[i].value,start_j,end_j,1024);
-            if ((DEBUG_LEVEL>2) && (DEBUG_DISPLAY==true))
-              printf("cur_clear_value:%s\n",cur_clear_value);
 
-            int end_k;
-  					end_k=strlen(val)-strlen(cur_clear_value);
-            int k;
-  					for (k=0;k<end_k;k++)
-  					{
-  						if (cur_clear_value[0]==val[k])
-              {
-        				bool flag_match=true;
-        				if (k==0 || cur_value[0]=='*')
-        				{
-                  int m;
-                  //scan and comparison two string
-                  for (m=1;m<strlen(val);m++)
-                  {
-                    if (cur_clear_value[m]!=val[k+m])
-                    {
-            					flag_match=false;
-                      if (DEBUG_LEVEL>2)
-                        if (DEBUG_DISPLAY==true)
-                        {
-                          printf("![%c!=%c]!\n",cur_clear_value[m],val[k+m]);
-                        }
-                    }
-                    else
-                    {
-                      if (DEBUG_LEVEL>2)
-                        if (DEBUG_DISPLAY==true)
-                        {
-                          printf("%c",val[k+m]);
-                        }
-                    }
-                  }
-                  if (flag_match==true)
-                  {
-                    if (m<(strlen(val)-1) && cur_value[strlen(cur_value)-1]!='*')
-            					flag_match=false;
-                  }
-        				}
-        				else
-        					flag_match=false;
-
-        				if (flag_match==true)
-                {
-                  if (DEBUG_LEVEL>2)
-                  {
-                    if ((DEBUG==true) || (DEBUG_DISPLAY==true))
-                    {
-                      snprintf(msg,255,"[is_filter]filtering scan text=%s, filter: key=%s filter=%s\n",val,array_ignore[i].hash_key,array_ignore[i].value);
-                      deblog(msg);
-                    }
-                  }
-        					return true;
-                }
-  						}
-  					}
-  					j_start_value=j;
-  				}*/
   			}
   		}
     }
@@ -642,7 +511,7 @@ int read_ignorefile_to_buf(char *buf,int sz)
 		ATOM_count_ignore_key.store(0);
     return 0;
   }
-  if (DEBUG_LEVEL==3)
+  if (DEBUG_LEVEL>2)
   {
     snprintf(msg,255,"max_count_uniq_ignore_key %d",max_count_uniq_ignore_key);
     deblog(msg);
@@ -721,7 +590,7 @@ int buf_to_ignore_array(char *buf, int sz)
 
       if (strlen(str_ignore_key)>0)
       {
-        if (DEBUG_LEVEL==3)
+        if (DEBUG_LEVEL>3)
         {
           if ((DEBUG==true) || (DEBUG_DISPLAY==true))
           {
@@ -733,7 +602,7 @@ int buf_to_ignore_array(char *buf, int sz)
         hash_ignore_key=fnv1a_hash(str_ignore_key);
 				if (is_hash_in_array_available_hash_ignore_key(hash_ignore_key)==true)
 				{
-          if (DEBUG_LEVEL==3)
+          if (DEBUG_LEVEL>3)
           {
             if ((DEBUG==true) || (DEBUG_DISPLAY==true))
             {
@@ -745,7 +614,7 @@ int buf_to_ignore_array(char *buf, int sz)
 					first_i=copystr_start_posi_end_char(str_ignore_val,buf,first_i,i_line_end,'\n',1024);
 					if (strlen(str_ignore_val)>0)
 					{
-            if (DEBUG_LEVEL==3)
+            if (DEBUG_LEVEL>3)
             {
               if ((DEBUG==true) || (DEBUG_DISPLAY==true))
               {
@@ -769,62 +638,122 @@ int filtering(s_audit *f_array,int array_count)
 	int i;
   char msg[256];
   int count_filtering=0;
+
+  double exec_time,start_time,end_time;
+  if (DEBUG_PROFILE==true)
+    start_time=(double)(clock())/CLOCKS_PER_SEC;
+
+  //bool filter_on=false;
   if (ATOM_count_ignore_key.load()>0)
   {
     for (i = 0; i < array_count; i++)
     {
+      //filter_on=false;
+
   		if (f_array[i].auditid>0)
   		{
         if (is_filter_d(HASH_auid,f_array[i].auid))
   				f_array[i].auditid=0;
-  			if (is_filter(HASH_auid_user,f_array[i].auid_user))
-  				f_array[i].auditid=0;
-        if (is_filter_d(HASH_uid,f_array[i].uid))
-  				f_array[i].auditid=0;
-        if (is_filter(HASH_uid_user,f_array[i].uid_user)==true)
+
+        if (f_array[i].auditid!=0)
         {
-          if ((DEBUG==true) && (DEBUG_LEVEL>2))
-          {
-            snprintf(msg,255,"filtering auditid=%d f_array[%d].uid_user=%s",f_array[i].auditid,i,f_array[i].uid_user);
-            deblog(msg);
-          }
-  				f_array[i].auditid=0;
+    			if (is_filter(HASH_auid_user,f_array[i].auid_user))
+    				f_array[i].auditid=0;
         }
+        if (f_array[i].auditid!=0)
+        {
+          if (is_filter_d(HASH_uid,f_array[i].uid))
+    				f_array[i].auditid=0;
+        }
+        if (f_array[i].auditid!=0)
+        {
+          if (is_filter(HASH_uid_user,f_array[i].uid_user)==true)
+          {
+            if ((DEBUG==true) && (DEBUG_LEVEL>2))
+            {
+              snprintf(msg,255,"filtering auditid=%d f_array[%d].uid_user=%s",f_array[i].auditid,i,f_array[i].uid_user);
+              deblog(msg);
+            }
+    				f_array[i].auditid=0;
+          }
+        }
+        if (f_array[i].auditid!=0)
+        {
+          if (is_filter_d(HASH_euid,f_array[i].euid))
+    				f_array[i].auditid=0;
+        }
+        if (f_array[i].auditid!=0)
+    			if (is_filter(HASH_euid_user,f_array[i].euid_user))
+    				f_array[i].auditid=0;
 
-        if (is_filter_d(HASH_euid,f_array[i].euid))
-  				f_array[i].auditid=0;
-  			if (is_filter(HASH_euid_user,f_array[i].euid_user))
-  				f_array[i].auditid=0;
-        if (is_filter_d(HASH_suid,f_array[i].suid))
-  				f_array[i].auditid=0;
-  			if (is_filter(HASH_suid_user,f_array[i].suid_user))
-  				f_array[i].auditid=0;
+        if (f_array[i].auditid!=0)
+          if (is_filter_d(HASH_suid,f_array[i].suid))
+    				f_array[i].auditid=0;
 
+        if (f_array[i].auditid!=0)
+    			if (is_filter(HASH_suid_user,f_array[i].suid_user))
+    				f_array[i].auditid=0;
 
-  			if (is_filter(HASH_addr,f_array[i].addr))
-  				f_array[i].auditid=0;
-  			if (is_filter(HASH_exe,f_array[i].exe))
-  				f_array[i].auditid=0;
-  			if (is_filter(HASH_key,f_array[i].key))
-  				f_array[i].auditid=0;
-  			if (is_filter(HASH_newcontext,f_array[i].newcontext))
-  				f_array[i].auditid=0;
-  			if (is_filter(HASH_oldcontext,f_array[i].oldcontext))
-  				f_array[i].auditid=0;
-  			if (is_filter(HASH_proctitle,f_array[i].proctitle))
-  				f_array[i].auditid=0;
-  			if (is_filter(HASH_saddr,f_array[i].res_saddr))
-  				f_array[i].auditid=0;
-        if (is_filter(HASH_names,f_array[i].names,true))
-  				f_array[i].auditid=0;
+        if (f_array[i].auditid!=0)
+    			if (is_filter(HASH_addr,f_array[i].addr))
+    				f_array[i].auditid=0;
+
+        if (f_array[i].auditid!=0)
+    			if (is_filter(HASH_exe,f_array[i].exe))
+    				f_array[i].auditid=0;
+
+        if (f_array[i].auditid!=0)
+    			if (is_filter(HASH_key,f_array[i].key))
+    				f_array[i].auditid=0;
+
+        if (f_array[i].auditid!=0)
+    			if (is_filter(HASH_newcontext,f_array[i].newcontext))
+    				f_array[i].auditid=0;
+
+        if (f_array[i].auditid!=0)
+    			if (is_filter(HASH_oldcontext,f_array[i].oldcontext))
+    				f_array[i].auditid=0;
+
+        if (f_array[i].auditid!=0)
+    			if (is_filter(HASH_proctitle,f_array[i].proctitle))
+    				f_array[i].auditid=0;
+
+        if (f_array[i].auditid!=0)
+    			if (is_filter(HASH_saddr,f_array[i].res_saddr))
+    				f_array[i].auditid=0;
+
+        if (f_array[i].auditid!=0)
+          if (is_filter(HASH_names,f_array[i].names,true))
+    				f_array[i].auditid=0;
 
         if (f_array[i].auditid==0)
         {
           count_filtering++;
           ATOM_STAT_filtering.fetch_add(1);
+
+          //clear
+          memset((&f_array[i]),0,sizeof(s_audit));
+          //clear_array_audit_id(f_array,i);
         }
   		}
   	}
   }
   ATOM_filtering.store(count_filtering);
+  if (DEBUG_PROFILE==true)
+  {
+    end_time=(double)(clock())/CLOCKS_PER_SEC;
+    exec_time=end_time-start_time;
+    snprintf(msg,255,"profiling[filtering]:%f",exec_time);
+    deblog(msg);
+  }
 }
+
+
+/*int filtering(s_audit *f_array,int array_count)
+{
+	int i;
+  char msg[256];
+  int count_filtering=0;
+
+  return 0;
+}*/
