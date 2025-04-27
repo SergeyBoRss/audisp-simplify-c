@@ -23,24 +23,29 @@
 #include <assert.h>
 #include <zlib.h>
 
+#define ON true
+#define OFF false
 #define COUNT_PARALLEL_PARSING 3
 #define SIZE_BUF 65536
-//#define SIZE_SKIPPED_QUEUE 15
-#define COUNT_SEQ_MEM_PARSING 40
+#define DEFAULT_READ_BLOCK_SIZE 4096
+
+#define COUNT_SEQ_MEM_PARSING 120
 #define COUNT_CACHE_LOGIN 20
 #define COUNT_CACHE_GROUP 15
 #define COUNT_STAT_UID 20
-#define SIZE_AUDIT 125
-#define MAX_AUDIT_BEFORE_SAVE_TO_FILE 110
-#define SAVE_AUDIT 100
-#define STAT_INTERVAL 10
+#define SIZE_AUDIT 200
+#define MAX_AUDIT_BEFORE_SAVE_TO_FILE 160
+#define SAVE_AUDIT 140
+#define STAT_INTERVAL 60
 #define ZLEVEL 9
 #define CHUNK 16384
 
 using namespace std;
 
+extern bool FILTER;
 extern const char *ignorefile;
 extern const char *logfile;
+extern const char *errfile;
 extern const char *storefile;
 extern const char *compressfile;
 extern const char *uncompressfile;
@@ -50,6 +55,7 @@ extern const char *adminfile;
 
 extern FILE *f_ignorefile;
 extern FILE *f_logfile;
+extern FILE *f_err;
 extern FILE *f_debug;
 extern FILE *f_stat;
 extern FILE *f_admin;
@@ -57,11 +63,11 @@ extern FILE *f_admin;
 extern int pid;
 extern int ppid;
 
-/*struct s_skipped_queue
-{
-  int start_seq_mem_parsing;
-  int end_seq_mem_parsing;
-};*/
+
+
+
+
+
 
 struct s_ignore
 {
@@ -189,6 +195,12 @@ struct s_audit
   char   acct[255];
   char   unit[255];
 	char   success[255];
+
+  bool   items_isset;
+  int    items;
+
+  bool   exit_isset;
+  int    exit;
 };
 
 extern pthread_t T_coordinator;
@@ -206,12 +218,15 @@ extern atomic_int  ATOM_line_read;
 extern atomic_int  ATOM_start_seq_mem_relocate;
 extern atomic_int  ATOM_end_seq_mem_relocate;
 extern atomic_bool ATOM_THREAD_parsing_line_run[COUNT_PARALLEL_PARSING];
+extern atomic_bool ATOM_THREAD_parsing_line_processing[COUNT_PARALLEL_PARSING];
 extern atomic_int  ATOM_THREAD_start_seq_mem[COUNT_PARALLEL_PARSING];
 extern atomic_int  ATOM_THREAD_end_seq_mem[COUNT_PARALLEL_PARSING];
 extern atomic_int  ATOM_last_end_seq_mem;
 extern atomic_bool ATOM_THREAD_relocate_buf_to_start_run;
 extern atomic_bool ATOM_relocate_run;
 extern atomic_bool ATOM_relocate_processed;
+extern atomic_int  ATOM_relocate_RED_ZONE_start_section;
+extern atomic_int  ATOM_relocate_RED_ZONE_end_section;
 extern atomic_bool ATOM_THREAD_parsing_buf_run;
 extern atomic_int  ATOM_run_parsing_line;
 extern atomic_int  ATOM_parsing_line_processed;
@@ -224,15 +239,22 @@ extern atomic_int  ATOM_add_to_array_auditid[COUNT_PARALLEL_PARSING];
 extern atomic_int  ATOM_start_audit_relocate;
 extern atomic_int  ATOM_end_audit_relocate;
 extern atomic_int  ATOM_post_relocate;
-extern atomic_bool ATOM_need_save;
+//extern atomic_bool ATOM_need_save;
 extern atomic_bool ATOM_THREAD_save_run;
 extern atomic_bool ATOM_save_run;
 extern atomic_int  ATOM_save_count;
 
 extern atomic_bool ATOM_STAT;
 extern atomic_int  ATOM_STAT_read_byte;
+extern atomic_int  ATOM_STAT_read_block;
+extern atomic_int  ATOM_STAT_memory_read_block_size;
+extern atomic_int  ATOM_STAT_current_read_block_size;
+extern atomic_int  ATOM_STAT_read_byte_in_block;
 extern atomic_int  ATOM_STAT_filtering;
 extern atomic_int  ATOM_STAT_line_auditd;
+extern atomic_int  ATOM_STAT_raw_auditd_error;
+extern atomic_int  ATOM_STAT_auditd_error;
+extern atomic_int  ATOM_STAT_leak;
 
 extern atomic_bool ATOM_cmd_stop;
 extern atomic_bool ATOM_cmd_logrotate;
@@ -242,23 +264,23 @@ extern atomic_bool ATOM_compress_gz;
 extern atomic_bool ATOM_cmd_pause;
 
 extern int         size_buf;
+extern bool        resize_size_b_char;
+extern bool        reduce_size_b_char;
 extern char       *read_buf;
 extern s_audit    *array_audit;
 extern s_pass     *array_pass;
 extern s_group    *array_group;
 extern s_STAT_UID *array_STAT_UID;
 extern s_ignore   *array_ignore;
-//extern s_skipped_queue *skipped_queue;
 
 extern mutex MTX_parsing_line_read_seq;
-//extern mutex MTX_skipped_queue;
-//extern mutex MTX_relocate;
+extern mutex MTX_debug;
 
 extern sem_t SEM_relocate_buf;
 extern sem_t SEM_relocate_audit;
 extern sem_t SEM_line_read;
 extern sem_t SEM_run_parsing_line;
-extern sem_t SEM_array_audit_lock;
+
 extern sem_t SEM_save;
 
 void  admin_file             (const char *adminfile);
@@ -268,7 +290,8 @@ void *F_relocate_buf_to_start(void* vbuf);
 void *F_parsing_buf          (void* vbuf);
 void *F_parsing_line         (void* vbuf);
 void  STAT_UID_add           (int c_uid);
-void  clear_STAT_UID         ();
+void sort_STAT_UID           ();
+void clear_STAT_UID          ();
 void *F_save_file            (void* varray_audit);
 void *F_relocate_audit       (void* varray_audit);
 void  write_stat();
