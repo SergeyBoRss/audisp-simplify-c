@@ -37,6 +37,7 @@ void printbuf(char *buf);
 void print_ALL_audit();
 
 void clear_buf(int istart,int iend,char *buf);
+void space_buf(int istart,int iend,char *buf);
 int strpos_istart(char *bufstr,int start_i,int end_i,char *searchstr);
 int copy_val_istart(char *val, char *bufstr, int start_i, int end_i, char *filter, char stop_char,int max_char,int prev_delta_pos_find_val);
 int copystr_start_posi_end_char(char *bufout,char *bufin,int start_i,int end_i,char stop_char,int max_char);
@@ -53,5 +54,6 @@ int count_array_audit(int start_calc /*0*/);
 int F_parsing_string_to_auditid(char *buf, int start_i, int end_i, s_audit *f_array,int n_thread);
 void clear_array_audit_id(s_audit *f_array,int id);
 bool find_in_text(char * str, char *search_str, char separate);
+int reduce_line(int *i_start,int *i_end,char *buf);
 
 #endif // __AUDISP_SIMPLIFY_C_STR_FUNCTION_H__
