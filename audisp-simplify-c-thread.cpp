@@ -77,8 +77,8 @@ atomic_bool ATOM_compress_gz=false;
 atomic_bool ATOM_cmd_pause=false;
 
 int       size_buf=SIZE_BUF;
-bool      resize_size_b_char=true;
-bool      reduce_size_b_char=true;
+//bool      resize_size_b_char=true;
+//bool      reduce_size_b_char=false;
 
 char       *read_buf;
 s_audit    *array_audit;
@@ -141,29 +141,105 @@ void admin_file(const char *adminfile)
       if ((DEBUG==true) || (DEBUG_DISPLAY==true))
         snprintf(msg,255,"cmd[%s]\n",str_cmd);
       deblog(msg);
-
+      if (strncmp(str_cmd,"filter on",24)==0)
+      {
+        FILTER=ON;
+      }
+      if (strncmp(str_cmd,"filter off",24)==0)
+      {
+        FILTER=OFF;
+      }
+      if (strncmp(str_cmd,"pause on",24)==0)
+      {
+        ATOM_cmd_pause.store(true);
+      }
+      if (strncmp(str_cmd,"pause off",24)==0)
+      {
+        ATOM_cmd_pause.store(false);
+      }
       if (strncmp(str_cmd,"stop",24)==0)
       {
         ATOM_cmd_stop.store(true);
       }
+      if (strncmp(str_cmd,"logrotate",24)==0)
+      {
+        ATOM_cmd_logrotate.store(true);
+      }
+      if (strncmp(str_cmd,"logrotated",24)==0)
+      {
+        ATOM_cmd_logrotated.store(true);
+      }
+      if (strncmp(str_cmd,"compress",24)==0)
+      {
+        ATOM_cmd_logrotategz.store(true);
+      }
+      if (strncmp(str_cmd,"debug to file",24)==0)
+      {
+        DEBUG=true;
+      }
+      if (strncmp(str_cmd,"debug level 0",24)==0)
+        DEBUG_LEVEL=0;
+      if (strncmp(str_cmd,"debug level 1",24)==0)
+        DEBUG_LEVEL=1;
+      if (strncmp(str_cmd,"debug level 2",24)==0)
+        DEBUG_LEVEL=2;
+      if (strncmp(str_cmd,"debug level 3",24)==0)
+        DEBUG_LEVEL=3;
+      if (strncmp(str_cmd,"debug level 4",24)==0)
+        DEBUG_LEVEL=4;
+      if (strncmp(str_cmd,"debug level 5",24)==0)
+        DEBUG_LEVEL=5;
+      if (strncmp(str_cmd,"debug level 6",24)==0)
+        DEBUG_LEVEL=6;
+      if (strncmp(str_cmd,"debug level 7",24)==0)
+        DEBUG_LEVEL=7;
+      if (strncmp(str_cmd,"debug level 8",24)==0)
+        DEBUG_LEVEL=8;
+      if (strncmp(str_cmd,"debug level 9",24)==0)
+        DEBUG_LEVEL=9;
+
+      if (strncmp(str_cmd,"debug to display",24)==0)
+      {
+        DEBUG_DISPLAY=true;
+      }
+      if (strncmp(str_cmd,"debug off",24)==0)
+      {
+        deblog((char *)"debug off");
+        save_deblog();
+        DEBUG=false;
+        DEBUG_DISPLAY=false;
+      }
+      if (strncmp(str_cmd,"print buffer",24)==0)
+      {
+        printbuf(read_buf);//======TESTING======
+      }
+      if (strncmp(str_cmd,"print audit array",24)==0)
+      {
+        print_ALL_audit();
+      }
+      if (strncmp(str_cmd,"print stat",24)==0)
+      {
+        print_stat();
+      }
       if (strncmp(str_cmd,"help",24)==0)
       {
         printf("use cmd: echo 'cmd' > %s\n",adminfile);
-        printf("    filter on        : filtering audit array use file %s\n",ignorefile);
-        printf("    filter off       : filtering off\n");
-        printf("    pause on         : read STDIO but not store to buffer and not parsing\n");
-        printf("    pause off        : read STDIO, store to buffer and parsing\n");
-        printf("    stop             : set signal to stop all thread, and close programm\n");
-        printf("    logrotate        : move %s to %s\n",logfile,storefile);
-        printf("    logrotated       : move %s to %s.yyyymmdd_HHMMSS\n",logfile,storefile);
-        printf("    compress         : compress %s to %s.gz\n",logfile,storefile);
-        printf("    debug to file    : set on debug to file %s",deblogfile);
-        printf("    debug to display : set on debug to display");
-        printf("    debug off        : set off debug to file and display");
-        printf("    print buffer     : print internal buffer and position parsing thread");//<------- may be BUG === TESTING ====
-        printf("    print audit array: print internal buffer audit, before save to file %s",logfile);
-        printf("    print stat       : print statistic, \"they are automatically written to a file %s\"",statfile);
-        printf("    help             : print this messages");
+        printf("    filter on         : filtering audit array use file %s\n",ignorefile);
+        printf("    filter off        : filtering off\n");
+        printf("    pause on          : read STDIO but not store to buffer and not parsing\n");
+        printf("    pause off         : read STDIO, store to buffer and parsing\n");
+        printf("    stop              : set signal to stop all thread, and close programm\n");
+        printf("    logrotate         : move %s to %s\n",logfile,storefile);
+        printf("    logrotated        : move %s to %s.yyyymmdd_HHMMSS\n",logfile,storefile);
+        printf("    compress          : compress %s to %s.gz\n",logfile,storefile);
+        printf("    debug to file     : set on debug to file %s",deblogfile);
+        printf("    debug level (0..1): set on debug level %d",DEBUG_LEVEL);
+        printf("    debug to display  : set on debug to display");
+        printf("    debug off         : set off debug to file and display");
+        printf("    print buffer      : print internal buffer and position parsing thread");//<------- may be BUG === TESTING ====
+        printf("    print audit array : print internal buffer audit, before save to file %s",logfile);
+        printf("    print stat        : print statistic, \"they are automatically written to a file %s\"",statfile);
+        printf("    help              : print this messages");
       }
     }
 
