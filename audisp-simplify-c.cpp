@@ -20,6 +20,9 @@ double DISPLAY_PROFILE_OVER_F_parsing_line=0.000300;
 double DISPLAY_PROFILE_OVER_parsing_string_to_auditid=0.000900;
 bool   FILTER=ON;
 
+bool      resize_size_b_char=true;
+bool      reduce_size_b_char=true;
+
 const char *ignorefile="/etc/audit/simplify.ignores";
 const char *logfile="/var/log/audisp-simplify-c";
 const char *errfile="/var/log/audisp-simplify-c.error";
