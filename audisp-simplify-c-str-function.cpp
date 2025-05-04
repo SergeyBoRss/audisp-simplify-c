@@ -232,15 +232,18 @@ void debbuf(int istart,int iend,char *buf)
 {
   if (DEBUG_DISPLAY==true)
   {
+    MTX_deblog.lock();
     printf("(%d)[%d][%d]",ATOM_line_read.load(),istart,iend);
     for (int i=istart; i<iend; i++)
       printf("%c",buf[i]);
     printf("\n");
+    MTX_deblog.unlock();
   }
 
   if ((DEBUG==true) && (DEBUG_LEVEL>2))
   {
       FILE *f_debug;
+      MTX_save_debug_run.lock();
       if ((f_debug=fopen(deblogfile,"a"))!=NULL)
       {
         fprintf(f_debug,"[%d][%d]{%d}",istart,iend,buf[istart]);
@@ -251,6 +254,7 @@ void debbuf(int istart,int iend,char *buf)
       }
       else
         printf("error open debug file %s\n",deblogfile);
+      MTX_save_debug_run.unlock();
   }
 }
 
@@ -274,6 +278,36 @@ void clear_buf(int istart,int iend,char *buf)
 {
   for (int i=istart; i<iend; i++)
     buf[i]='\0';
+}
+
+void space_buf(int istart,int iend,char *buf)
+{
+  if ((istart>=0) && (iend<SIZE_BUF))
+  {
+    if ((DEBUG_DISPLAY==true) || (DEBUG_LEVEL>7))
+    {
+      //debbuf(istart,iend,buf);
+      MTX_deblog.lock();
+      printf("=========== space_buf(%d,%d) =========<",istart,iend);
+    }
+    for (int i=istart; i<iend; i++)
+    {
+      if ((DEBUG_DISPLAY==true) || (DEBUG_LEVEL>7))
+      {
+        printf("%c",buf[i]);
+      }
+      buf[i]=' ';
+    }
+    if ((DEBUG_DISPLAY==true) || (DEBUG_LEVEL>7))
+    {
+      printf(">\n");
+      MTX_deblog.unlock();
+    }
+  }
+  else
+  {
+    deblog((char *)"error space_buf()");
+  }
 }
 
 int strpos_istart(char *bufstr,int start_i,int end_i,char *searchstr)
@@ -397,181 +431,184 @@ int copy_val_istart(char *val, char *bufstr, int start_i, int end_i, char *filte
     prev_delta_pos_find_val=0;
 
 
-  int i_start=start_i+prev_delta_pos_find_val;
-  int i_end=end_i;
-  //====== начинаем поиск с позиции prev_delta_pos_find_val ======
-  int i;
-  for (i = i_start; i < i_end; i++)
-  {
-    bool find_char=false;
-		if (bufstr[i]=='\n' || bufstr[i]=='\0')
-		{
-      if (DEBUG_PROFILE==true)
-      {
-        end_time=(double)(clock())/CLOCKS_PER_SEC;
-        exec_time=end_time-start_time;
-        if (exec_time>DISPLAY_PROFILE_OVER)
-        {
-          snprintf(msg,255,"profiling[copy_val_istart(filter=%s prev position=%d ret -1){return pointer 2}]:%f",filter,prev_delta_pos_find_val,exec_time);
-          deblog(msg);
-        }
-      }
-			return -1;
-		}
-    if (bufstr[i]==filter[0])
+    int i_start=start_i+prev_delta_pos_find_val;
+    int i_end=end_i;
+    //====== start find from position prev_delta_pos_find_val + 1 ======
+    int i;
+    for (i = (i_start+1); i < i_end; i++)
     {
-      if (DEBUG_LEVEL>8)
-      {
-        snprintf(msg,255,"\n^%s^",filter);
-    	  deblog(msg);
-      }
-      find_char=true;
-    }
-    else
-    {
-      if ((filter[0]==' ') && (bufstr[i]==0x1d))
-      {
-        if (DEBUG_LEVEL>8)
+      bool find_char=false;
+      if (bufstr[i]=='\n' || bufstr[i]=='\0')
+  		{
+        if (DEBUG_PROFILE==true)
         {
-          snprintf(msg,255,"\n^%s^",filter);
-      	  deblog(msg);
-        }
-        find_char=true;
-      }
-      else
-        find_char=false;
-    }
-    if (find_char==true)
-    {
-      //===============comparison filter and text=================
-      //comparison filter and text
-      indx=i;
-      int j;
-      int j_start;
-      if ((filter[0]==' ') && (bufstr[indx]==0x1d))
-        j_start=1;
-      else
-        j_start=0;
-
-      for (j=j_start; j<(strlen(filter)); j++)
-      {
-        if (bufstr[i+j]!=filter[j])
-        {
-          indx=-1;
-          if (DEBUG_LEVEL>8)
+          end_time=(double)(clock())/CLOCKS_PER_SEC;
+          exec_time=end_time-start_time;
+          if (exec_time>DISPLAY_PROFILE_OVER)
           {
-            snprintf(msg,255,"- [%c]",bufstr[i+j]);
+            snprintf(msg,255,"profiling[copy_val_istart(filter=%s prev position=%d ret -1){return pointer 2}]:%f",filter,prev_delta_pos_find_val,exec_time);
             deblog(msg);
           }
-          break;
+        }
+  			return -1;
+  		}
+      if (bufstr[i]==filter[1])
+      {
+        if (filter[0]==bufstr[i-1])
+        {
+          if (DEBUG_LEVEL>8)
+          {
+            snprintf(msg,255,"\n^%s^",filter);
+            deblog(msg);
+          }
+          find_char=true;
         }
         else
         {
-          if (DEBUG_LEVEL>8)
+          if ((filter[0]==' ') && (bufstr[i-1]==0x1d))
           {
-            snprintf(msg,255,"+ [%c]",bufstr[i+j]);
-            deblog(msg);
+            if (DEBUG_LEVEL>8)
+            {
+              snprintf(msg,255,"\n^%s^",filter);
+              deblog(msg);
+            }
+            find_char=true;
           }
-
+          else
+            find_char=false;
         }
       }
-
-      if (indx>=0)
+      if (find_char==true)
       {
-        if (DEBUG_LEVEL>8)
+        //===============comparison filter and text=================
+        //comparison filter and text
+        indx=i-1;
+        int j;
+        int j_start;
+        j_start=2;
+
+        for (j=j_start; j<(strlen(filter)); j++)
         {
-          deblog((char *)"+++++++++++ find");
-        }
-        for (int k=indx+j; k<(indx+j+max_char); k++)
-        {
-          //копирование результата в val
-          if (k>=end_i)
+          if (bufstr[i-1+j]!=filter[j])
           {
-            val[0]='\0';
-            if (DEBUG_PROFILE==true)
+            indx=-1;
+            if (DEBUG_LEVEL>8)
             {
-              end_time=(double)(clock())/CLOCKS_PER_SEC;
-              exec_time=end_time-start_time;
-              if (exec_time>DISPLAY_PROFILE_OVER)
-              {
-                snprintf(msg,255,"profiling[copy_val_istart(filter=%s prev position=%d ret -1){return pointer 3}]:%f",filter,prev_delta_pos_find_val,exec_time);
-                deblog(msg);
-              }
+              snprintf(msg,255,"- [%c]",bufstr[i-1+j]);
+              deblog(msg);
             }
-            return -1;
-          }
-          if (DEBUG_LEVEL>7)
-          {
-            snprintf(msg,255,"copy_val_istart >>>>>>>>>> val[%d-%d-%d]=bufstr[%d]  (%c)",k,indx,j,k,bufstr[k]);
-            deblog(msg);
-          }
-          val[k-indx-j]=bufstr[k];
-          if (stop_char==' ')
-          {
-            if ((val[k-indx-j]==' ') || (val[k-indx-j]=='\0') || (val[k-indx-j]=='\n'))
-            {
-              val[k-indx-j]='\0';
-              if (DEBUG_LEVEL>7)
-              {
-                snprintf(msg,255,"copy_val_istart ++++++ val=%s",val);
-                deblog(msg);
-              }
-              if (DEBUG_PROFILE==true)
-              {
-                end_time=(double)(clock())/CLOCKS_PER_SEC;
-                exec_time=end_time-start_time;
-                if (exec_time>DISPLAY_PROFILE_OVER)
-                {
-                  snprintf(msg,255,"profiling[copy_val_istart(filter=%s prev position=%d ret %d){return pointer 4}]:%f",filter,prev_delta_pos_find_val,(k-start_i),exec_time);
-                  deblog(msg);
-                }
-              }
-              return k-start_i;
-            }
+            break;
           }
           else
           {
-            if (val[k-indx-j]==stop_char)
+            if (DEBUG_LEVEL>8)
             {
-              val[k-indx-j]='\0';
+              snprintf(msg,255,"+ [%c]",bufstr[i-1+j]);
+              deblog(msg);
+            }
+
+          }
+        }
+
+        if (indx>=0)
+        {
+          if (DEBUG_LEVEL>8)
+          {
+            deblog((char *)"+++++++++++ find");
+          }
+          for (int k=indx+j; k<(indx+j+max_char); k++)
+          {
+            //copy res to val
+            if (k>=end_i)
+            {
+              val[0]='\0';
               if (DEBUG_PROFILE==true)
               {
                 end_time=(double)(clock())/CLOCKS_PER_SEC;
                 exec_time=end_time-start_time;
                 if (exec_time>DISPLAY_PROFILE_OVER)
                 {
-                  snprintf(msg,255,"profiling[copy_val_istart(filter=%s prev position=%d ret %d){return pointer 5}]:%f",filter,prev_delta_pos_find_val,(k-start_i),exec_time);
+                  snprintf(msg,255,"profiling[copy_val_istart(filter=%s prev position=%d ret -1){return pointer 3}]:%f",filter,prev_delta_pos_find_val,exec_time);
                   deblog(msg);
                 }
               }
-              return k-start_i;
+              return -1;
             }
+            if (DEBUG_LEVEL>7)
+            {
+              snprintf(msg,255,"copy_val_istart >>>>>>>>>> val[%d-%d-%d]=bufstr[%d]  (%c)",k,indx,j,k,bufstr[k]);
+              deblog(msg);
+            }
+            val[k-indx-j]=bufstr[k];
+            if (stop_char==' ')
+            {
+              if ((val[k-indx-j]==' ') || (val[k-indx-j]=='\0') || (val[k-indx-j]=='\n'))
+              {
+                val[k-indx-j]='\0';
+                if (DEBUG_LEVEL>7)
+                {
+                  snprintf(msg,255,"copy_val_istart ++++++ val=%s",val);
+                  deblog(msg);
+                }
+                if (DEBUG_PROFILE==true)
+                {
+                  end_time=(double)(clock())/CLOCKS_PER_SEC;
+                  exec_time=end_time-start_time;
+                  if (exec_time>DISPLAY_PROFILE_OVER)
+                  {
+                    snprintf(msg,255,"profiling[copy_val_istart(filter=%s prev position=%d ret %d){return pointer 4}]:%f",filter,prev_delta_pos_find_val,(k-start_i),exec_time);
+                    deblog(msg);
+                  }
+                }
+                space_buf(indx,k,bufstr);//replace parsing sting to space char
+                return k-start_i;
+              }
+            }
+            else
+            {
+              if (val[k-indx-j]==stop_char)
+              {
+                val[k-indx-j]='\0';
+                if (DEBUG_PROFILE==true)
+                {
+                  end_time=(double)(clock())/CLOCKS_PER_SEC;
+                  exec_time=end_time-start_time;
+                  if (exec_time>DISPLAY_PROFILE_OVER)
+                  {
+                    snprintf(msg,255,"profiling[copy_val_istart(filter=%s prev position=%d ret %d){return pointer 5}]:%f",filter,prev_delta_pos_find_val,(k-start_i),exec_time);
+                    deblog(msg);
+                  }
+                }
+                return k-start_i;
+              }
+            }
+
           }
 
         }
-        //не нашли стоп символа
+        //not find stop char
         val[0]='\0';
         if (DEBUG_LEVEL>7)
           deblog((char *)"copy_val_istart:not find stop char");
         indx=-1;
-      }
-      //===============comparison filter and text=================
-    }
-  }
-  val[0]='\0';
-  indx=-1;
 
-  //===== не найдено начина с позиции prev_delta_pos_find_val
+        //===============comparison filter and text=================
+      }
+    }
+    val[0]='\0';
+    indx=-1;
+
+  //===== not find from prev_delta_pos_find_val
   if (prev_delta_pos_find_val>0)
   {
     int i_start=start_i;
     int i_end=start_i+prev_delta_pos_find_val+strlen(filter);
-    //====== начинаем поиск с позиции start_i и заканчиваем  i_end======
+    //====== start find from start_i and finish i_end======
     int i;
-    for (i = i_start; i < i_end; i++)
+    for (i = (i_start+1); i < i_end; i++)
     {
       bool find_char=false;
-  		if (bufstr[i]=='\n' || bufstr[i]=='\0')
+      if (bufstr[i]=='\n' || bufstr[i]=='\0')
   		{
         if (DEBUG_PROFILE==true)
         {
@@ -585,41 +622,73 @@ int copy_val_istart(char *val, char *bufstr, int start_i, int end_i, char *filte
         }
   			return -1;
   		}
-      if (bufstr[i]==filter[0])
-        find_char=true;
-      else
+      if (bufstr[i]==filter[1])
       {
-        if ((filter[0]==' ') && (bufstr[i]==0x1d))
+        if (filter[0]==bufstr[i-1])
+        {
+          if (DEBUG_LEVEL>8)
+          {
+            snprintf(msg,255,"\n^%s^",filter);
+            deblog(msg);
+          }
           find_char=true;
+        }
         else
-          find_char=false;
+        {
+          if ((filter[0]==' ') && (bufstr[i-1]==0x1d))
+          {
+            if (DEBUG_LEVEL>8)
+            {
+              snprintf(msg,255,"\n^%s^",filter);
+              deblog(msg);
+            }
+            find_char=true;
+          }
+          else
+            find_char=false;
+        }
       }
       if (find_char==true)
       {
         //===============comparison filter and text=================
         //comparison filter and text
-        indx=i;
+        indx=i-1;
         int j;
         int j_start;
-        if ((filter[0]==' ') && (bufstr[indx]==0x1d))
-          j_start=1;
-        else
-          j_start=0;
+        j_start=2;
 
         for (j=j_start; j<(strlen(filter)); j++)
         {
-          if (bufstr[i+j]!=filter[j])
+          if (bufstr[i-1+j]!=filter[j])
           {
             indx=-1;
+            if (DEBUG_LEVEL>8)
+            {
+              snprintf(msg,255,"- [%c]",bufstr[i-1+j]);
+              deblog(msg);
+            }
             break;
+          }
+          else
+          {
+            if (DEBUG_LEVEL>8)
+            {
+              snprintf(msg,255,"+ [%c]",bufstr[i-1+j]);
+              deblog(msg);
+            }
+
           }
         }
 
         if (indx>=0)
         {
+          if (DEBUG_LEVEL>8)
+          {
+            deblog((char *)"+++++++++++ find");
+          }
           for (int k=indx+j; k<(indx+j+max_char); k++)
           {
-            //копирование результата в val
+            //copy res to val
             if (k>=end_i)
             {
               val[0]='\0';
@@ -635,13 +704,22 @@ int copy_val_istart(char *val, char *bufstr, int start_i, int end_i, char *filte
               }
               return -1;
             }
+            if (DEBUG_LEVEL>7)
+            {
+              snprintf(msg,255,"copy_val_istart >>>>>>>>>> val[%d-%d-%d]=bufstr[%d]  (%c)",k,indx,j,k,bufstr[k]);
+              deblog(msg);
+            }
             val[k-indx-j]=bufstr[k];
             if (stop_char==' ')
             {
               if ((val[k-indx-j]==' ') || (val[k-indx-j]=='\0') || (val[k-indx-j]=='\n'))
               {
                 val[k-indx-j]='\0';
-                //space_buf(indx,k-indx-j,buf);//replace parsing sting to space
+                if (DEBUG_LEVEL>7)
+                {
+                  snprintf(msg,255,"copy_val_istart ++++++ val=%s",val);
+                  deblog(msg);
+                }
                 if (DEBUG_PROFILE==true)
                 {
                   end_time=(double)(clock())/CLOCKS_PER_SEC;
@@ -652,7 +730,7 @@ int copy_val_istart(char *val, char *bufstr, int start_i, int end_i, char *filte
                     deblog(msg);
                   }
                 }
-
+                space_buf(indx,k,bufstr);//replace parsing sting to space char
                 return k-start_i;
               }
             }
@@ -676,15 +754,22 @@ int copy_val_istart(char *val, char *bufstr, int start_i, int end_i, char *filte
             }
 
           }
-          //не нашли стоп символа
-          val[0]='\0';
-          indx=-1;
+
         }
+        //not find stop char
+        val[0]='\0';
+        if (DEBUG_LEVEL>7)
+          deblog((char *)"copy_val_istart:not find stop char");
+        indx=-1;
+
         //===============comparison filter and text=================
       }
+
     }
-    val[0]='\0';
   }
+  //===== not find from prev_delta_pos_find_val
+
+
   val[0]='\0';
   if (DEBUG_LEVEL>8)
   {
@@ -696,7 +781,7 @@ int copy_val_istart(char *val, char *bufstr, int start_i, int end_i, char *filte
     exec_time=end_time-start_time;
     if (exec_time>DISPLAY_PROFILE_OVER)
     {
-      snprintf(msg,255,"profiling[copy_val_istart(filter=%s prev position=%d ret -1){return pointer 1}]:%f",filter,prev_delta_pos_find_val,exec_time);
+      snprintf(msg,255,"profiling[copy_val_istart(filter=%s prev position=%d ret -1){return pointer 10}]:%f",filter,prev_delta_pos_find_val,exec_time);
       deblog(msg);
     }
   }
@@ -721,6 +806,7 @@ int copystr_start_posi_end_char(char *bufout,char *bufin,int start_i,int end_i,c
     if (bufin[i]==stop_char)
     {
       bufout[i-start_i]='\0';
+      //space_buf(start_i,i,bufin);
       return i;
     }
   }
@@ -1656,6 +1742,7 @@ int F_parsing_string_to_auditid(char *buf, int start_i, int end_i, s_audit *f_ar
   if (first_i>=0)
   {
     prev_delta_pos_find_val=0;
+    int start_i_space=first_i;
     first_i=first_i+strlen(pos_filter);
 
     //unixtime
@@ -1673,8 +1760,20 @@ int F_parsing_string_to_auditid(char *buf, int start_i, int end_i, s_audit *f_ar
     first_i=copystr_start_posi_end_char(str_mls,buf,first_i,i_line_end,':',3)+1;
     cur_audit.t_mls=atoi(str_mls);
     first_i=copystr_start_posi_end_char(str_auditid,buf,first_i,i_line_end,')',12)+1;
+
+    if (first_i<(SIZE_BUF-1))
+    {
+
+      if (buf[first_i]==':')
+      {
+        int end_i_space=first_i+1;
+        space_buf(start_i_space,end_i_space,buf);
+      }
+    }
+
     //snprintf(msg,255,"[thread:%d]function F_parsing_string_to_auditid:find auditid=%s",n_thread,str_auditid);
     //deblog(msg);
+
     cur_audit.auditid=atoi(str_auditid);
     //========================== парсинг строки ============================================================
     //=======clear====
@@ -1750,6 +1849,87 @@ int F_parsing_string_to_auditid(char *buf, int start_i, int end_i, s_audit *f_ar
       {
         debbuf(i_line_start,i_line_end,buf); //<=========== BUG ========= TESTING =====
       }
+
+      test_delta_pos_find_val=copy_val_istart(cur_audit.types,read_buf,i_line_start,i_line_end,(char *)"type=",' ',255, prev_delta_pos_find_val);
+      if (test_delta_pos_find_val>=0)
+      {
+        prev_delta_pos_find_val=test_delta_pos_find_val;
+        cur_audit.type_isset=true;
+      }
+      reduce_line(&i_line_start,&i_line_end,read_buf);
+
+      test_delta_pos_find_val=copy_val_istart(str_tmp,read_buf,i_line_start,i_line_end,(char *)" item=",' ',255, prev_delta_pos_find_val);
+      if (test_delta_pos_find_val>=0)
+      {
+        prev_delta_pos_find_val=test_delta_pos_find_val;
+        cur_audit.item_isset=true;
+        cur_audit.item=atoi(str_tmp);
+      }
+
+      //str_tmp[0]='\0';
+      //last_isset=array_audit[find_id_in_auditid].name_isset;
+
+      test_delta_pos_find_val=copy_val_istart(cur_audit.names,read_buf,i_line_start,i_line_end,(char *)" name=\"",'"',10240, prev_delta_pos_find_val);
+      if (test_delta_pos_find_val>=0)
+      {
+        prev_delta_pos_find_val=test_delta_pos_find_val;
+        cur_audit.name_isset=true;
+      }
+      //if (cur_audit.name_isset==true)
+      //{
+      //  array_audit[find_id_in_auditid].name_isset=true;
+      //  if (strlen(array_audit[find_id_in_auditid].names)>0)
+      //  {
+      //    strncpy(cur_audit.names,array_audit[find_id_in_auditid].names,10240);
+      //    strnaddchar(cur_audit.names,',',10240);
+      //  }
+      //  strnadd(cur_audit.names,str_tmp,10240,10240);
+      //}
+      //if (array_audit[find_id_in_auditid].name_isset==true)
+      //  cur_audit.name_isset=true;
+
+      reduce_line(&i_line_start,&i_line_end,read_buf);
+      //====test space_buf
+      if (DEBUG_LEVEL>6)
+        debbuf(i_line_start,i_line_end,buf); //<=========== BUG ========= TESTING =====
+      //====test space_buf
+
+      test_delta_pos_find_val=copy_val_istart(str_tmp,read_buf,i_line_start,i_line_end,(char *)"arch=",' ',11, prev_delta_pos_find_val);
+      /*if (test_delta_pos_find_val>=0)
+      {
+        prev_delta_pos_find_val=test_delta_pos_find_val;
+        cur_audit.arch_isset=true;
+      }*/
+
+      test_delta_pos_find_val=copy_val_istart(str_tmp,read_buf,i_line_start,i_line_end,(char *)" syscall=",' ',25, prev_delta_pos_find_val);
+      if (test_delta_pos_find_val>=0)
+      {
+        prev_delta_pos_find_val=test_delta_pos_find_val;
+        cur_audit.syscall_isset=true;
+        cur_audit.syscall=atoi(str_tmp);
+      }
+
+      test_delta_pos_find_val=copy_val_istart(cur_audit.success,read_buf,i_line_start,i_line_end,(char *)" success=",' ',255, prev_delta_pos_find_val);
+      if (test_delta_pos_find_val>=0)
+        prev_delta_pos_find_val=test_delta_pos_find_val;
+
+      test_delta_pos_find_val=copy_val_istart(str_tmp,read_buf,i_line_start,i_line_end,(char *)" exit=",' ',255, prev_delta_pos_find_val);
+      if (test_delta_pos_find_val>=0)
+      {
+        prev_delta_pos_find_val=test_delta_pos_find_val;
+        cur_audit.exit_isset=true;
+        cur_audit.exit=atoi(str_tmp);
+      }
+
+
+      reduce_line(&i_line_start,&i_line_end,read_buf);
+      //====test space_buf
+      if (DEBUG_LEVEL>6)
+        debbuf(i_line_start,i_line_end,buf); //<=========== BUG ========= TESTING =====
+      //====test space_buf
+
+
+
       test_delta_pos_find_val=copy_val_istart(cur_audit.auid_user,read_buf,i_line_start,i_line_end,(char *)"auid=",' ',255, prev_delta_pos_find_val);
       if (test_delta_pos_find_val>=0)
       {
@@ -1783,6 +1963,11 @@ int F_parsing_string_to_auditid(char *buf, int start_i, int end_i, s_audit *f_ar
         cur_audit.gid_isset=true;
         cur_audit.gid=atoi(cur_audit.gid_group);
       }
+      //====test space_buf
+      if (DEBUG_LEVEL>6)
+        debbuf(i_line_start,i_line_end,buf); //<=========== BUG ========= TESTING =====
+      //====test space_buf
+
 
       test_delta_pos_find_val=copy_val_istart(cur_audit.euid_user,read_buf,i_line_start,i_line_end,(char *)" euid=",' ',255, prev_delta_pos_find_val);
       if (test_delta_pos_find_val>=0)
@@ -1855,6 +2040,12 @@ int F_parsing_string_to_auditid(char *buf, int start_i, int end_i, s_audit *f_ar
         cur_audit.fsgid_isset=true;
         cur_audit.fsgid=atoi(cur_audit.fsgid_group);
       }
+
+      //====test space_buf
+      if (DEBUG_LEVEL>6)
+        debbuf(i_line_start,i_line_end,buf); //<=========== BUG ========= TESTING =====
+      //====test space_buf
+      reduce_line(&i_line_start,&i_line_end,read_buf);
 
 
 
@@ -1932,13 +2123,7 @@ int F_parsing_string_to_auditid(char *buf, int start_i, int end_i, s_audit *f_ar
       if (test_delta_pos_find_val>=0)
         prev_delta_pos_find_val=test_delta_pos_find_val;
 
-      test_delta_pos_find_val=copy_val_istart(str_tmp,read_buf,i_line_start,i_line_end,(char *)" syscall=",' ',25, prev_delta_pos_find_val);
-      if (test_delta_pos_find_val>=0)
-      {
-        prev_delta_pos_find_val=test_delta_pos_find_val;
-        cur_audit.syscall_isset=true;
-        cur_audit.syscall=atoi(str_tmp);
-      }
+
 
       test_delta_pos_find_val=copy_val_istart(cur_audit.op,read_buf,i_line_start,i_line_end,(char *)" op=",' ',255, prev_delta_pos_find_val);
       if (test_delta_pos_find_val>=0)
@@ -2000,13 +2185,7 @@ int F_parsing_string_to_auditid(char *buf, int start_i, int end_i, s_audit *f_ar
       str_tmp[0]='\0';
 
 
-      test_delta_pos_find_val=copy_val_istart(cur_audit.types,read_buf,i_line_start,i_line_end,(char *)"type=",' ',255, prev_delta_pos_find_val);
-      if (test_delta_pos_find_val>=0)
-      {
-        prev_delta_pos_find_val=test_delta_pos_find_val;
-        cur_audit.type_isset=true;
 
-      }
       //if (cur_audit.type_isset==true)
       //{
       //  if (strlen(array_audit[find_id_in_auditid].types)>0)
@@ -2019,27 +2198,7 @@ int F_parsing_string_to_auditid(char *buf, int start_i, int end_i, s_audit *f_ar
       //if (last_isset==true)
       //  cur_audit.type_isset=last_isset;
 
-      //str_tmp[0]='\0';
-      //last_isset=array_audit[find_id_in_auditid].name_isset;
 
-      test_delta_pos_find_val=copy_val_istart(cur_audit.names,read_buf,i_line_start,i_line_end,(char *)" name=\"",'"',10240, prev_delta_pos_find_val);
-      if (test_delta_pos_find_val>=0)
-      {
-        prev_delta_pos_find_val=test_delta_pos_find_val;
-        cur_audit.name_isset=true;
-      }
-      //if (cur_audit.name_isset==true)
-      //{
-      //  array_audit[find_id_in_auditid].name_isset=true;
-      //  if (strlen(array_audit[find_id_in_auditid].names)>0)
-      //  {
-      //    strncpy(cur_audit.names,array_audit[find_id_in_auditid].names,10240);
-      //    strnaddchar(cur_audit.names,',',10240);
-      //  }
-      //  strnadd(cur_audit.names,str_tmp,10240,10240);
-      //}
-      //if (array_audit[find_id_in_auditid].name_isset==true)
-      //  cur_audit.name_isset=true;
 
 
 
@@ -2050,9 +2209,7 @@ int F_parsing_string_to_auditid(char *buf, int start_i, int end_i, s_audit *f_ar
       test_delta_pos_find_val=copy_val_istart(cur_audit.unit,read_buf,i_line_start,i_line_end,(char *)" unit=\"",'"',255, prev_delta_pos_find_val);
       if (test_delta_pos_find_val>=0)
         prev_delta_pos_find_val=test_delta_pos_find_val;
-      test_delta_pos_find_val=copy_val_istart(cur_audit.success,read_buf,i_line_start,i_line_end,(char *)" success=",' ',255, prev_delta_pos_find_val);
-      if (test_delta_pos_find_val>=0)
-        prev_delta_pos_find_val=test_delta_pos_find_val;
+
 
       test_delta_pos_find_val=copy_val_istart(str_tmp,read_buf,i_line_start,i_line_end,(char *)" items=",' ',255, prev_delta_pos_find_val);
       if (test_delta_pos_find_val>=0)
@@ -2061,13 +2218,7 @@ int F_parsing_string_to_auditid(char *buf, int start_i, int end_i, s_audit *f_ar
         cur_audit.items_isset=true;
         cur_audit.items=atoi(str_tmp);
       }
-      test_delta_pos_find_val=copy_val_istart(str_tmp,read_buf,i_line_start,i_line_end,(char *)" exit=",' ',255, prev_delta_pos_find_val);
-      if (test_delta_pos_find_val>=0)
-      {
-        prev_delta_pos_find_val=test_delta_pos_find_val;
-        cur_audit.exit_isset=true;
-        cur_audit.exit=atoi(str_tmp);
-      }
+
       //=================arg=====================
 
       test_delta_pos_find_val=copy_val_istart(str_tmp,read_buf,i_line_start,i_line_end,(char *)" argc=",' ',20, prev_delta_pos_find_val);
@@ -2494,4 +2645,28 @@ bool find_in_text(char * str, char *search_str, char separate)
       i_val_start=i+1;
   }
   return false;
+}
+
+int reduce_line(int *i_start,int *i_end,char *buf)
+{
+  //char msg[128];
+  int reduse_start_i=*i_start;
+  int reduse_end_i=*i_end;
+  int i=reduse_start_i;
+  if (buf[i]==' ')
+  {
+    for (i=reduse_start_i;i<reduse_end_i;i++)
+    {
+      if (buf[i]!=' ')
+      {
+        *i_start=(i-1);
+        if (DEBUG_LEVEL>6)
+        {
+          deblog((char *)"=== reduce_line ===");
+        }
+        return (i-1);
+      }
+    }
+  }
+  return -1;
 }
