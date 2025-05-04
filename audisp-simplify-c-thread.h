@@ -190,6 +190,10 @@ struct s_audit
   char   avc[64];
 	bool   type_isset;
   char   types[4096];
+  //bool   arch_isset;
+  //char   arch[12];
+  bool   item_isset;
+  int    item;
 	bool   name_isset;
   char   names[10240];
   char   acct[255];
