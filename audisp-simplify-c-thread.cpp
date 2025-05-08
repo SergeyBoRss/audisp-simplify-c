@@ -176,27 +176,68 @@ void admin_file(const char *adminfile)
       if (strncmp(str_cmd,"debug to file",24)==0)
       {
         DEBUG=true;
+        deblog((char *)"debug to file on");
       }
       if (strncmp(str_cmd,"debug level 0",24)==0)
+      {
         DEBUG_LEVEL=0;
+        deblog((char *)"debug level 0");
+      }
+
       if (strncmp(str_cmd,"debug level 1",24)==0)
+      {
         DEBUG_LEVEL=1;
+        deblog((char *)"debug level 1");
+      }
+
       if (strncmp(str_cmd,"debug level 2",24)==0)
+      {
         DEBUG_LEVEL=2;
+        deblog((char *)"debug level 2");
+      }
+
       if (strncmp(str_cmd,"debug level 3",24)==0)
+      {
         DEBUG_LEVEL=3;
+        deblog((char *)"debug level 3");
+      }
+
       if (strncmp(str_cmd,"debug level 4",24)==0)
+      {
         DEBUG_LEVEL=4;
+        deblog((char *)"debug level 4");
+      }
+
       if (strncmp(str_cmd,"debug level 5",24)==0)
+      {
         DEBUG_LEVEL=5;
+        deblog((char *)"debug level 5");
+      }
+
       if (strncmp(str_cmd,"debug level 6",24)==0)
+      {
         DEBUG_LEVEL=6;
+        deblog((char *)"debug level 6");
+      }
+
       if (strncmp(str_cmd,"debug level 7",24)==0)
+      {
         DEBUG_LEVEL=7;
+        deblog((char *)"debug level 7");
+      }
+
       if (strncmp(str_cmd,"debug level 8",24)==0)
+      {
         DEBUG_LEVEL=8;
+        deblog((char *)"debug level 8");
+      }
+
       if (strncmp(str_cmd,"debug level 9",24)==0)
+      {
         DEBUG_LEVEL=9;
+        deblog((char *)"debug level ");
+      }
+
 
       if (strncmp(str_cmd,"debug to display",24)==0)
       {
@@ -208,6 +249,16 @@ void admin_file(const char *adminfile)
         save_deblog();
         DEBUG=false;
         DEBUG_DISPLAY=false;
+      }
+      if (strncmp(str_cmd,"profiling on",24)==0)
+      {
+        deblog((char *)"profiling on");
+        DEBUG_PROFILE=true;
+      }
+      if (strncmp(str_cmd,"profiling off",24)==0)
+      {
+        DEBUG_PROFILE=false;
+        deblog((char *)"profiling off");
       }
       if (strncmp(str_cmd,"print buffer",24)==0)
       {
@@ -236,6 +287,8 @@ void admin_file(const char *adminfile)
         printf("    debug level (0..1): set on debug level %d",DEBUG_LEVEL);
         printf("    debug to display  : set on debug to display");
         printf("    debug off         : set off debug to file and display");
+        printf("    profiling on      : set on profiling");
+        printf("    profiling off     : set off profiling");
         printf("    print buffer      : print internal buffer and position parsing thread");//<------- may be BUG === TESTING ====
         printf("    print audit array : print internal buffer audit, before save to file %s",logfile);
         printf("    print stat        : print statistic, \"they are automatically written to a file %s\"",statfile);
@@ -874,6 +927,7 @@ void *F_parsing_buf(void* vbuf)
           snprintf(msg,255,"profiling[F_parsing_buf(iteration)]:%f",exec_time);
           deblog(msg);
         }
+
       }
       sem_wait(&SEM_line_read);
       if (DEBUG_PROFILE==true)
