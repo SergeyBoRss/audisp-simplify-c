@@ -8,7 +8,8 @@
 #include <pwd.h>
 #include <grp.h>
 
-#define SIZE_MSG 1024
+#define SIZE_MSG 2048
+#define SIZE_PROFILING 1024
 extern bool DEBUG;
 extern bool DEBUG_DISPLAY;
 extern int  DEBUG_LEVEL;
@@ -21,7 +22,6 @@ extern char *msg;
 extern mutex MTX_deblog;
 extern mutex MTX_save_debug_run;
 extern atomic_int ATOM_i_msg;
-extern atomic_bool ATOM_save_debug_run;
 extern atomic_bool ATOM_debug_simply;
 //extern FILE *f_debug;
 extern const char *deblogfile;
@@ -31,7 +31,7 @@ extern atomic_bool ATOM_enable_scan_extend_UID;
 
 void save_err(char *msg);
 void save_deblog();
-void deblog(char *msg);
+void deblog(char *inmsg);
 void debbuf(int istart,int iend,char *buf);
 void printbuf(char *buf);
 void print_ALL_audit();
