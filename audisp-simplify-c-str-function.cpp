@@ -5,7 +5,6 @@ char *msg;
 mutex MTX_deblog;
 mutex MTX_save_debug_run;
 atomic_int  ATOM_i_msg=0;
-atomic_bool ATOM_save_debug_run=false;
 atomic_bool ATOM_debug_simply=false;
 atomic_int  ATOM_prev_delta_strpos_istart=0;
 atomic_bool ATOM_enable_scan_extend_UID=true;
@@ -36,29 +35,22 @@ void save_deblog()
   {
     if (DEBUG==true)
     {
-      if (ATOM_save_debug_run.load()==false)
+      MTX_save_debug_run.lock();
+      if ((f_debug=fopen(deblogfile,"a"))!=NULL)
       {
-        MTX_save_debug_run.lock();
-        ATOM_save_debug_run.store(true);
-        if ((f_debug=fopen(deblogfile,"a"))!=NULL)
-        {
-
-          fprintf(f_debug,"%s",msg);
-          fclose(f_debug);
-          ATOM_i_msg.store(0);
-        }
-        else
-          printf("error save debug file %s\n",deblogfile);
-        ATOM_save_debug_run.store(false);
-        MTX_save_debug_run.unlock();
+        fprintf(f_debug,"%s",msg);
+        fclose(f_debug);
+        ATOM_i_msg.store(0);
       }
+      else
+        printf("error save debug file %s\n",deblogfile);
+      MTX_save_debug_run.unlock();
     }
   }
 }
 
 void deblog(char *inmsg)
 {
-
   if (DEBUG_DISPLAY==true)
   {
     double seconds=(double)(clock())/CLOCKS_PER_SEC;
@@ -92,33 +84,21 @@ void deblog(char *inmsg)
       if ((i_msg+lensec+lenmsg+1)>=SIZE_MSG)
       {
         ATOM_i_msg.store(0);
-        if (ATOM_save_debug_run.load()==false)
+        MTX_save_debug_run.lock();
+        if ((f_debug=fopen(deblogfile,"a"))!=NULL)
         {
-          MTX_save_debug_run.lock();
-          ATOM_save_debug_run.store(true);
-
-          if ((f_debug=fopen(deblogfile,"a"))!=NULL)
-          {
-            //fprintf(f_debug,"[%f]:%s\n",seconds,msg);
-            fprintf(f_debug,"%s",msg);
-            fclose(f_debug);
-            //memzerro
-            memset(msg,0,sizeof(char) * SIZE_MSG);
-          }
-          else
-            printf("error open debug file %s\n",deblogfile);
-
-          i_msg=0;
-          ATOM_i_msg.store(0);
-          ATOM_save_debug_run.store(false);
-          MTX_save_debug_run.unlock();
+          //fprintf(f_debug,"[%f]:%s\n",seconds,msg);
+          fprintf(f_debug,"%s",msg);
+          fclose(f_debug);
+          //memzerro
+          memset(msg,0,sizeof(char) * SIZE_MSG);
         }
         else
-          printf("debug already saved: drop msg(%s)\n",inmsg);
-
+          printf("error open debug file %s\n",deblogfile);
+        i_msg=0;
+        MTX_save_debug_run.unlock();
       }
       MTX_deblog.lock();
-      i_msg=ATOM_i_msg.load();
       for (int i=i_msg; i<(i_msg+lensec); i++)
         msg[i]=char_sec[i-i_msg];
       i_msg=i_msg+lensec;
@@ -130,7 +110,6 @@ void deblog(char *inmsg)
       ATOM_i_msg.store(i_msg);
       MTX_deblog.unlock();
     }
-
   }
 }
 
@@ -420,7 +399,7 @@ int copy_val_istart(char *val, char *bufstr, int start_i, int end_i, char *filte
       exec_time=end_time-start_time;
       if (exec_time>DISPLAY_PROFILE_OVER)
       {
-        snprintf(msg,255,"profiling[copy_val_istart(filter=%s prev position=%d ret -1){return pointer 1}:%f",filter,prev_delta_pos_find_val,exec_time);
+        snprintf(msg,255,"profiling[copy_val_istart(filter=%s prev position=%d ret -1){return pointer 1}]:%f",filter,prev_delta_pos_find_val,exec_time);
         deblog(msg);
       }
     }
@@ -1734,10 +1713,10 @@ int F_parsing_string_to_auditid(char *buf, int start_i, int end_i, s_audit *f_ar
 
   //=========================
   if (DEBUG_LEVEL>5)
-    debbuf(i_line_start,i_line_end,buf); //<=========== BUG ========= TESTING =====
+    debbuf(i_line_start,i_line_end,buf);
   strncpy(pos_filter,"msg=audit(",16);
-  if (ATOM_prev_delta_strpos_istart.load()>=4)
-    ATOM_prev_delta_strpos_istart.store(ATOM_prev_delta_strpos_istart.load()-4);
+  //if (ATOM_prev_delta_strpos_istart.load()>=4)
+    //ATOM_prev_delta_strpos_istart.store(ATOM_prev_delta_strpos_istart.load()-4);
   first_i=strpos_istart(buf,i_line_start,i_line_end,pos_filter);
   if (first_i>=0)
   {
@@ -1845,16 +1824,17 @@ int F_parsing_string_to_auditid(char *buf, int start_i, int end_i, s_audit *f_ar
     if (cur_audit.pid != pid && cur_audit.ppid != ppid)
     {
     //======================================================13
-      if (DEBUG_LEVEL>3)
-      {
-        debbuf(i_line_start,i_line_end,buf); //<=========== BUG ========= TESTING =====
-      }
+      test_delta_pos_find_val=copy_val_istart(str_tmp,read_buf,i_line_start,i_line_end,(char *)"node=",' ',255, prev_delta_pos_find_val);
 
       test_delta_pos_find_val=copy_val_istart(cur_audit.types,read_buf,i_line_start,i_line_end,(char *)"type=",' ',255, prev_delta_pos_find_val);
       if (test_delta_pos_find_val>=0)
       {
         prev_delta_pos_find_val=test_delta_pos_find_val;
         cur_audit.type_isset=true;
+      }
+      if (DEBUG_LEVEL>6)
+      {
+        debbuf(i_line_start,i_line_end,buf);
       }
       reduce_line(&i_line_start,&i_line_end,read_buf);
 
@@ -1888,12 +1868,6 @@ int F_parsing_string_to_auditid(char *buf, int start_i, int end_i, s_audit *f_ar
       //if (array_audit[find_id_in_auditid].name_isset==true)
       //  cur_audit.name_isset=true;
 
-      reduce_line(&i_line_start,&i_line_end,read_buf);
-      //====test space_buf
-      if (DEBUG_LEVEL>6)
-        debbuf(i_line_start,i_line_end,buf); //<=========== BUG ========= TESTING =====
-      //====test space_buf
-
       test_delta_pos_find_val=copy_val_istart(str_tmp,read_buf,i_line_start,i_line_end,(char *)"arch=",' ',11, prev_delta_pos_find_val);
       /*if (test_delta_pos_find_val>=0)
       {
@@ -1908,6 +1882,12 @@ int F_parsing_string_to_auditid(char *buf, int start_i, int end_i, s_audit *f_ar
         cur_audit.syscall_isset=true;
         cur_audit.syscall=atoi(str_tmp);
       }
+
+      reduce_line(&i_line_start,&i_line_end,read_buf);
+      //====test space_buf
+      if (DEBUG_LEVEL>6)
+        debbuf(i_line_start,i_line_end,buf);
+      //====test space_buf
 
       test_delta_pos_find_val=copy_val_istart(cur_audit.success,read_buf,i_line_start,i_line_end,(char *)" success=",' ',255, prev_delta_pos_find_val);
       if (test_delta_pos_find_val>=0)
