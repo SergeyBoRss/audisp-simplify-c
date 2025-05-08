@@ -32,7 +32,6 @@ const char *uncompressfile="/var/log/audisp-simplify-c.uncompress";
 const char *deblogfile="/var/log/audisp-simplify-c.debug";
 const char *statfile="/var/log/audisp-simplify-c.stat";
 const char *adminfile="/var/lib/audisp-simplify-c.cmd";
-const char *profilingfile="/var/lib/audisp-simplify-c.profiling";
 
 int main(int argc,char *argv[])
 {
@@ -54,7 +53,7 @@ int main(int argc,char *argv[])
     }
   }
 
-  msg=(char *)malloc(sizeof(char) * SIZE_MSG);
+  msg      =(char *)malloc(sizeof(char) * SIZE_MSG);
   deblog((char *)"=======================\n================== start =========");
   if ((DEBUG==true) || (DEBUG_DISPLAY==true))
     snprintf(msg_main,255,"pid=%d ppid=%d",pid,ppid);
@@ -135,7 +134,6 @@ int main(int argc,char *argv[])
 
   if ((DEBUG_DISPLAY==true) && (DEBUG_LEVEL>2))
     printf("start free\n");
-
   save_deblog();
   return 0;
 }
